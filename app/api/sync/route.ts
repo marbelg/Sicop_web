@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getDb } from '@/lib/db'
+import AdmZip from 'adm-zip'
 
 const SICOP_BASE = 'https://www.sicop.go.cr'
 const PORTAL_URL = `${SICOP_BASE}/moduloPcont/pcont/rp/CE_MOD_DATOSABIERTOSVIEW.jsp`
@@ -106,18 +107,30 @@ async function syncDataset(
 
   if (!res.ok) throw new Error(`HTTP ${res.status} for ${dataset.name}`)
 
-  const text = await res.text()
+  const contentType = res.headers.get('content-type') ?? ''
+  const buffer = Buffer.from(await res.arrayBuffer())
   let rows: any[] = []
 
+  let jsonText: string
+  if (contentType.includes('zip') || buffer[0] === 0x50 && buffer[1] === 0x4B) {
+    // It's a ZIP — extract the first file inside
+    const zip = new AdmZip(buffer)
+    const entry = zip.getEntries().find(e => e.entryName.endsWith('.json') || e.entryName.endsWith('.txt'))
+    if (!entry) throw new Error(`No JSON file found inside ZIP for ${dataset.name}`)
+    jsonText = zip.readAsText(entry)
+  } else {
+    jsonText = buffer.toString('utf8')
+  }
+
   try {
-    const parsed = JSON.parse(text)
+    const parsed = JSON.parse(jsonText)
     if (Array.isArray(parsed)) rows = parsed
     else {
       const key = Object.keys(parsed).find(k => Array.isArray(parsed[k]))
       rows = key ? parsed[key] : []
     }
   } catch {
-    throw new Error(`Invalid JSON from ${dataset.name}: ${text.slice(0, 100)}`)
+    throw new Error(`Invalid JSON from ${dataset.name}: ${jsonText.slice(0, 100)}`)
   }
 
   let inserted = 0, updated = 0, skipped = 0
