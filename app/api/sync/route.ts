@@ -148,7 +148,14 @@ async function syncDataset(
 
   skipped += rows.length - normalized.length
 
-  for (let i = 0; i < normalized.length; i += BATCH) {
+  // Deduplicate by numero_procedimiento (SICOP can have dupes in same file)
+  const deduped = Array.from(
+    normalized.reduce((m, r) => m.set(r.numero_procedimiento, r), new Map()).values()
+  )
+  skipped += normalized.length - deduped.length
+
+  for (let i = 0; i < deduped.length; i += BATCH) {
+    const batch = deduped.slice(i, i + BATCH)
     const batch = normalized.slice(i, i + BATCH)
     try {
       const result = await sql`
