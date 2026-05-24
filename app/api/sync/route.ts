@@ -27,18 +27,16 @@ const DATASETS = [
 ]
 
 function normalizeSC(row: any) {
-  const numero = row.numero_procedimiento || row.numeroProcedimiento || row.NUM_PROCEDIMIENTO ||
-                 row.CD_PROCEDURE || row.cdProcedure || row.numProcedimiento
+  const numero = row.NUMERO_PROCEDIMIENTO
   if (!numero) return null
 
   const parseDate = (v: any) => {
     if (!v) return null
     const s = String(v).trim()
-    if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) {
-      const [d, m, y] = s.split('/')
-      return `${y}-${m}-${d}`
-    }
     if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10)
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) {
+      const [d, m, y] = s.split('/'); return `${y}-${m}-${d}`
+    }
     return null
   }
 
@@ -48,25 +46,17 @@ function normalizeSC(row: any) {
     return isNaN(n) ? null : n
   }
 
-  const get = (...keys: string[]) => {
-    for (const k of keys) {
-      const found = Object.keys(row).find(rk => rk.toLowerCase() === k.toLowerCase())
-      if (found !== undefined && row[found] !== '' && row[found] != null) return String(row[found]).trim()
-    }
-    return null
-  }
-
   return {
     numero_procedimiento: String(numero).trim(),
-    titulo:            get('nombre_procedimiento','nombreProcedimiento','NM_PROCEDURE','titulo','nombre'),
-    institucion:       get('nombre_institucion','nombreInstitucion','NM_INST','institucion'),
-    tipo_procedimiento:get('tipo_procedimiento','tipoProcedimiento','DS_PROCEDURE_TYPE','tipo'),
-    monto_estimado:    parseAmt(get('monto_estimado','montoEstimado','AMT_ESTIMATED','monto')),
-    currency:          get('moneda','currency','DS_CURRENCY') ?? 'CRC',
-    fecha_publicacion: parseDate(get('fecha_publicacion','fechaPublicacion','DT_PUBLICATION','fecha_inicio')),
-    fecha_cierre:      parseDate(get('fecha_cierre','fechaCierre','DT_CLOSE','fecha_apertura')),
-    estado:            get('estado','estadoProcedimiento','DS_STATUS','estado_procedimiento'),
-    descripcion:       get('descripcion','objeto','DS_DESCRIPTION'),
+    titulo:            row.JUST_PROCEDENCIA ? String(row.JUST_PROCEDENCIA).slice(0, 500) : null,
+    institucion:       row.CEDULA_INSTITUCION ? String(row.CEDULA_INSTITUCION) : null,
+    tipo_procedimiento:row.TIPO_PROCEDIMIENTO ? String(row.TIPO_PROCEDIMIENTO) : null,
+    monto_estimado:    parseAmt(row.PRESUPUESTO),
+    currency:          row.MONEDA ?? 'CRC',
+    fecha_publicacion: parseDate(row.FECHA_TRAMITE),
+    fecha_cierre:      null,
+    estado:            'Activo',
+    descripcion:       row.FINALIDAD_PUBLICA ? String(row.FINALIDAD_PUBLICA).slice(0, 1000) : null,
     raw:               JSON.stringify(row),
   }
 }
