@@ -107,18 +107,19 @@ async function syncDataset(
 
   if (!res.ok) throw new Error(`HTTP ${res.status} for ${dataset.name}`)
 
-  const contentType = res.headers.get('content-type') ?? ''
   const buffer = Buffer.from(await res.arrayBuffer())
   let rows: any[] = []
+  let jsonText = ''
 
-  let jsonText: string
-  if (contentType.includes('zip') || buffer[0] === 0x50 && buffer[1] === 0x4B) {
-    // It's a ZIP — extract the first file inside
+  // Try ZIP extraction first, fall back to raw text
+  try {
     const zip = new AdmZip(buffer)
-    const entry = zip.getEntries().find(e => e.entryName.endsWith('.json') || e.entryName.endsWith('.txt'))
-    if (!entry) throw new Error(`No JSON file found inside ZIP for ${dataset.name}`)
+    const entries = zip.getEntries()
+    // Pick first entry that looks like data (json, txt, or no extension)
+    const entry = entries[0]
+    if (!entry) throw new Error('Empty ZIP')
     jsonText = zip.readAsText(entry)
-  } else {
+  } catch {
     jsonText = buffer.toString('utf8')
   }
 
@@ -130,7 +131,7 @@ async function syncDataset(
       rows = key ? parsed[key] : []
     }
   } catch {
-    throw new Error(`Invalid JSON from ${dataset.name}: ${jsonText.slice(0, 100)}`)
+    throw new Error(`Cannot parse response from ${dataset.name}: ${jsonText.slice(0, 120)}`)
   }
 
   let inserted = 0, updated = 0, skipped = 0
