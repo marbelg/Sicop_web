@@ -105,24 +105,33 @@ async function syncDataset(
     body,
   })
 
-  const buffer = Buffer.from(await res.arrayBuffer())
-  const contentType = res.headers.get('content-type') ?? ''
-  const status = res.status
+  // Step 1: POST returns the filename of the ZIP, not the file itself
+  const filename = (await res.text()).trim()
+  if (!filename.endsWith('.zip')) throw new Error(`Unexpected response: ${filename.slice(0, 100)}`)
+
+  // Step 2: Download the actual ZIP file
+  const fileUrl = `${SICOP_BASE}/moduloPcont/pcont/rp/${encodeURIComponent(filename)}`
+  const fileRes = await fetch(fileUrl, {
+    headers: {
+      'Cookie': `JSESSIONID=${sessionId}`,
+      'Referer': PORTAL_URL,
+      'User-Agent': 'Mozilla/5.0',
+    },
+  })
+  if (!fileRes.ok) throw new Error(`ZIP download failed: HTTP ${fileRes.status} for ${filename}`)
+
+  const buffer = Buffer.from(await fileRes.arrayBuffer())
   let rows: any[] = []
   let jsonText = ''
 
-  // Debug: log what we actually received
-  const rawText = buffer.toString('utf8')
-  const hexStart = buffer.slice(0, 4).toString('hex')
-
-  // Try ZIP extraction first, fall back to raw text
+  // Extract JSON from ZIP
   try {
     const unzipped = unzipSync(new Uint8Array(buffer))
     const firstFile = Object.values(unzipped)[0]
     if (!firstFile) throw new Error('Empty ZIP')
     jsonText = new TextDecoder().decode(firstFile)
   } catch {
-    jsonText = rawText
+    jsonText = buffer.toString('utf8')
   }
 
   try {
@@ -133,7 +142,7 @@ async function syncDataset(
       rows = key ? parsed[key] : []
     }
   } catch {
-    throw new Error(`[${status}] ${contentType} hex:${hexStart} body:${rawText.slice(0, 200)}`)
+    throw new Error(`Cannot parse JSON from ${dataset.name}: ${jsonText.slice(0, 120)}`)
   }
 
   let inserted = 0, updated = 0, skipped = 0
