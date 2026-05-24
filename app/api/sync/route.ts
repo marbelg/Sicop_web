@@ -31,6 +31,14 @@ const DATASETS = [
     table: 'carteles',
     normalizer: normalizeDC,
   },
+  {
+    name: 'ofertas',
+    endpoint: '/moduloPcont/servlet/cont/rp/CE_DA_O_CONTROLLER_JSON.java',
+    body: (start: string, end: string) =>
+      `bgnYmdO=${start}&endYmdO=${end}&instNmO=&instCdO=&supplierO=&instCartelNoO=&proceTypeO=&cmd=create`,
+    table: 'ofertas',
+    normalizer: normalizeO,
+  },
 ]
 
 function normalizeSC(row: any) {
@@ -96,6 +104,30 @@ function normalizeDC(row: any) {
     nro_sicop:              row.NRO_SICOP ? String(row.NRO_SICOP) : null,
     pago_adelantado_pymes:  row.PAGO_ADELANTADO_PYMES ? String(row.PAGO_ADELANTADO_PYMES) : null,
     raw:                    row,
+  }
+}
+
+function normalizeO(row: any) {
+  const id = row.IDENTIFICADOR
+  if (!id) return null
+
+  const parseTs = (v: any) => {
+    if (!v) return null
+    const s = String(v).trim()
+    return /^\d{4}-\d{2}-\d{2}/.test(s) ? s : null
+  }
+
+  return {
+    identificador:         String(id).trim(),
+    numero_procedimiento:  row.NUMERO_PROCEDIMIENTO ? String(row.NUMERO_PROCEDIMIENTO).trim() : null,
+    cedula_proveedor:      row.CEDULA_PROVEEDOR ? String(row.CEDULA_PROVEEDOR) : null,
+    fecha_presenta_oferta: parseTs(row.FECHA_PRESENTA_OFERTA),
+    estado:                row.ESTADO ? String(row.ESTADO) : null,
+    id_consorcio:          row.ID_CONSORCIO && row.ID_CONSORCIO !== '' ? String(row.ID_CONSORCIO) : null,
+    elegible:              row.ELEGIBLE ? String(row.ELEGIBLE) : null,
+    tipo_oferta:           row.TIPO_OFERTA ? String(row.TIPO_OFERTA) : null,
+    nro_sicop:             row.NRO_SICOP ? String(row.NRO_SICOP) : null,
+    raw:                   row,
   }
 }
 
@@ -176,7 +208,8 @@ async function syncDataset(
   let inserted = 0, updated = 0, skipped = 0, batchErrors: string[] = []
   const BATCH = 100
   const isSC = dataset.table === 'licitaciones'
-  const pkField = isSC ? 'numero_procedimiento' : 'nro_procedimiento'
+  const isDC = dataset.table === 'carteles'
+  const pkField = isSC ? 'numero_procedimiento' : isDC ? 'nro_procedimiento' : 'identificador'
 
   const normalized = rows.map(row => {
     const norm = dataset.normalizer(row)
@@ -226,7 +259,7 @@ async function syncDataset(
             updated_at         = now()
           returning (xmax = 0) as is_insert
         `
-      } else {
+      } else if (isDC) {
         result = await sql`
           insert into carteles
             (nro_procedimiento, fecha_cierre, nombre_unidad_compra, cedula_institucion,
@@ -255,6 +288,28 @@ async function syncDataset(
             fecha_apertura         = excluded.fecha_apertura,
             nro_sicop              = excluded.nro_sicop,
             updated_at             = now()
+          returning (xmax = 0) as is_insert
+        `
+      } else {
+        result = await sql`
+          insert into ofertas
+            (identificador, numero_procedimiento, cedula_proveedor, fecha_presenta_oferta,
+             estado, id_consorcio, elegible, tipo_oferta, nro_sicop)
+          select
+            r->>'identificador',
+            r->>'numero_procedimiento',
+            r->>'cedula_proveedor',
+            (r->>'fecha_presenta_oferta')::timestamptz,
+            r->>'estado',
+            r->>'id_consorcio',
+            r->>'elegible',
+            r->>'tipo_oferta',
+            r->>'nro_sicop'
+          from jsonb_array_elements(${JSON.stringify(batch)}::jsonb) r
+          on conflict (identificador) do update set
+            estado    = excluded.estado,
+            elegible  = excluded.elegible,
+            updated_at = now()
           returning (xmax = 0) as is_insert
         `
       }
