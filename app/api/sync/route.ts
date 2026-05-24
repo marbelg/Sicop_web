@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getDb } from '@/lib/db'
-import AdmZip from 'adm-zip'
+import { unzipSync } from 'fflate'
 
 const SICOP_BASE = 'https://www.sicop.go.cr'
 const PORTAL_URL = `${SICOP_BASE}/moduloPcont/pcont/rp/CE_MOD_DATOSABIERTOSVIEW.jsp`
@@ -113,12 +113,10 @@ async function syncDataset(
 
   // Try ZIP extraction first, fall back to raw text
   try {
-    const zip = new AdmZip(buffer)
-    const entries = zip.getEntries()
-    // Pick first entry that looks like data (json, txt, or no extension)
-    const entry = entries[0]
-    if (!entry) throw new Error('Empty ZIP')
-    jsonText = zip.readAsText(entry)
+    const unzipped = unzipSync(new Uint8Array(buffer))
+    const firstFile = Object.values(unzipped)[0]
+    if (!firstFile) throw new Error('Empty ZIP')
+    jsonText = new TextDecoder().decode(firstFile)
   } catch {
     jsonText = buffer.toString('utf8')
   }
