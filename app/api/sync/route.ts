@@ -109,8 +109,8 @@ async function syncDataset(
   const filename = (await res.text()).trim()
   if (!filename.endsWith('.zip')) throw new Error(`Unexpected response: ${filename.slice(0, 100)}`)
 
-  // Step 2: Download the actual ZIP file
-  const fileUrl = `${SICOP_BASE}/moduloPcont/pcont/rp/${encodeURIComponent(filename)}`
+  // Step 2: GET same endpoint with cmd=download&fileZipName=
+  const fileUrl = `${SICOP_BASE}${dataset.endpoint}?cmd=download&fileZipName=${encodeURIComponent(filename)}`
   const fileRes = await fetch(fileUrl, {
     headers: {
       'Cookie': `JSESSIONID=${sessionId}`,
