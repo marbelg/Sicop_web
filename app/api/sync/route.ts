@@ -135,13 +135,15 @@ async function syncDataset(
     throw new Error(`Cannot parse JSON from ${dataset.name}: ${jsonText.slice(0, 120)}`)
   }
 
-  let inserted = 0, updated = 0, skipped = 0
-  const BATCH = 200
+  let inserted = 0, updated = 0, skipped = 0, batchErrors: string[] = []
+  const BATCH = 100
 
   const normalized = rows.map(row => {
     const norm = dataset.normalizer(row)
     if (!norm) return null
-    return { ...norm, keywords: extractKeywords(norm) }
+    // Exclude raw from batch to keep payload small; store separately
+    const { raw, ...rest } = norm as any
+    return { ...rest, keywords: extractKeywords(norm) }
   }).filter(Boolean) as any[]
 
   skipped += rows.length - normalized.length
@@ -152,7 +154,7 @@ async function syncDataset(
       const result = await sql`
         insert into licitaciones
           (numero_procedimiento, titulo, institucion, tipo_procedimiento, monto_estimado,
-           currency, fecha_publicacion, fecha_cierre, estado, descripcion, raw, keywords)
+           currency, fecha_publicacion, fecha_cierre, estado, descripcion, keywords)
         select
           r->>'numero_procedimiento',
           r->>'titulo',
@@ -164,7 +166,6 @@ async function syncDataset(
           (r->>'fecha_cierre')::date,
           r->>'estado',
           r->>'descripcion',
-          (r->'raw')::jsonb,
           array(select jsonb_array_elements_text(r->'keywords'))
         from jsonb_array_elements(${JSON.stringify(batch)}::jsonb) r
         on conflict (numero_procedimiento) do update set
@@ -174,7 +175,6 @@ async function syncDataset(
           monto_estimado     = excluded.monto_estimado,
           fecha_cierre       = excluded.fecha_cierre,
           estado             = excluded.estado,
-          raw                = excluded.raw,
           keywords           = excluded.keywords,
           updated_at         = now()
         returning (xmax = 0) as is_insert
@@ -182,7 +182,10 @@ async function syncDataset(
       for (const r of result) {
         if ((r as any).is_insert) inserted++; else updated++
       }
-    } catch { skipped += batch.length }
+    } catch (e: any) {
+      batchErrors.push(e.message?.slice(0, 100))
+      skipped += batch.length
+    }
   }
 
   await sql`
@@ -190,7 +193,7 @@ async function syncDataset(
     values (${dataset.name}, ${'auto-sync'}, ${inserted}, ${updated}, ${skipped})
   `
 
-  return { dataset: dataset.name, total: rows.length, inserted, updated, skipped }
+  return { dataset: dataset.name, total: rows.length, inserted, updated, skipped, firstError: batchErrors[0] ?? null }
 }
 
 export async function GET(req: NextRequest) {
