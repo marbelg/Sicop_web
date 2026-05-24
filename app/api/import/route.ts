@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { sql } from '@/lib/db'
+import { getDb } from '@/lib/db'
 import Papa from 'papaparse'
 import * as XLSX from 'xlsx'
 
@@ -58,6 +58,7 @@ function extractKeywords(row: ReturnType<typeof normalizeRow>) {
 
 export async function POST(req: NextRequest) {
   try {
+    const sql = getDb()
     const formData = await req.formData()
     const file = formData.get('file') as File | null
     if (!file) return NextResponse.json({ error: 'No file provided' }, { status: 400 })
