@@ -198,9 +198,10 @@ export async function GET(req: NextRequest) {
     yesterday.setDate(yesterday.getDate() - 1)
 
     // On first run use last 90 days to catch up
+    const full = req.nextUrl.searchParams.get('full') === 'true'
     const countRows = await sql`select count(*)::int as n from licitaciones`
     const total = (countRows?.[0] as any)?.n ?? 0
-    const startDate = total === 0
+    const startDate = (total === 0 || full)
       ? fmtSicop(new Date(today.getFullYear(), today.getMonth() - 3, 1))
       : fmtSicop(yesterday)
     const endDate = fmtSicop(today)
