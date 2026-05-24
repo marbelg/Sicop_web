@@ -13,21 +13,24 @@ export async function GET(req: NextRequest) {
 
   const rows = await sql`
     select
-      id, numero_procedimiento, titulo, institucion, tipo_procedimiento,
-      monto_estimado, currency, fecha_publicacion, fecha_cierre, estado, score
-    from licitaciones
+      l.id, l.numero_procedimiento, l.titulo, l.institucion, l.tipo_procedimiento,
+      l.monto_estimado, l.currency, l.fecha_publicacion, l.estado, l.score,
+      coalesce(c.fecha_cierre, l.fecha_cierre) as fecha_cierre,
+      coalesce(c.nombre_unidad_compra, l.institucion) as nombre_institucion
+    from licitaciones l
+    left join carteles c on c.nro_procedimiento = l.numero_procedimiento
     where
-      (${q} = '' or titulo ilike ${'%' + q + '%'} or descripcion ilike ${'%' + q + '%'})
-      and (${tipo} = '' or tipo_procedimiento = ${tipo})
-    order by fecha_publicacion desc nulls last
+      (${q} = '' or l.titulo ilike ${'%' + q + '%'} or l.descripcion ilike ${'%' + q + '%'})
+      and (${tipo} = '' or l.tipo_procedimiento = ${tipo})
+    order by l.fecha_publicacion desc nulls last
     limit ${limit} offset ${offset}
   `
 
   const countRows = await sql`
-    select count(*)::int as n from licitaciones
+    select count(*)::int as n from licitaciones l
     where
-      (${q} = '' or titulo ilike ${'%' + q + '%'} or descripcion ilike ${'%' + q + '%'})
-      and (${tipo} = '' or tipo_procedimiento = ${tipo})
+      (${q} = '' or l.titulo ilike ${'%' + q + '%'} or l.descripcion ilike ${'%' + q + '%'})
+      and (${tipo} = '' or l.tipo_procedimiento = ${tipo})
   `
   const total = (countRows[0] as any).n
 

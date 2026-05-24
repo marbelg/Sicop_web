@@ -23,7 +23,14 @@ const DATASETS = [
     table: 'licitaciones',
     normalizer: normalizeSC,
   },
-  // More datasets will be added here as we discover their endpoints
+  {
+    name: 'carteles',
+    endpoint: '/moduloPcont/servlet/cont/rp/CE_DA_DC_CONTROLLER_JSON.java',
+    body: (start: string, end: string) =>
+      `bgnYmdDC=${start}&endYmdDC=${end}&instNmDC=&instCdDC=&instCartelNoDC=&proceTypeDC=&cmd=create`,
+    table: 'carteles',
+    normalizer: normalizeDC,
+  },
 ]
 
 function normalizeSC(row: any) {
@@ -58,6 +65,37 @@ function normalizeSC(row: any) {
     estado:            'Activo',
     descripcion:       row.FINALIDAD_PUBLICA ? String(row.FINALIDAD_PUBLICA).slice(0, 1000) : null,
     raw:               row,
+  }
+}
+
+function normalizeDC(row: any) {
+  const nro = row.NRO_PROCEDIMIENTO
+  if (!nro) return null
+
+  const parseDate = (v: any) => {
+    if (!v) return null
+    const s = String(v).trim()
+    if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10)
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) {
+      const [d, m, y] = s.split('/'); return `${y}-${m}-${d}`
+    }
+    return null
+  }
+
+  return {
+    nro_procedimiento:      String(nro).trim(),
+    fecha_cierre:           parseDate(row.FECHA_CIERRE_RECEPCION),
+    nombre_unidad_compra:   row.NOMBRE_UNIDAD_COMPRA ? String(row.NOMBRE_UNIDAD_COMPRA).slice(0, 300) : null,
+    cedula_institucion:     row.CEDULA_INSTITUCION ? String(row.CEDULA_INSTITUCION) : null,
+    descripcion:            row.DESCRIPCION ? String(row.DESCRIPCION).slice(0, 1000) : null,
+    tipo_procedimiento:     row.TIPO_PROCEDIMIENTO ? String(row.TIPO_PROCEDIMIENTO) : null,
+    modalidad:              row.MODALIDAD_PROCEDIMIENTO ? String(row.MODALIDAD_PROCEDIMIENTO) : null,
+    fecha_publicacion:      parseDate(row.FECHA_PUBLICACION),
+    fecha_apertura:         parseDate(row.FECHA_APERTURA),
+    fecha_inicio_recepcion: parseDate(row.FECHA_INICIO_RECEPCION),
+    nro_sicop:              row.NRO_SICOP ? String(row.NRO_SICOP) : null,
+    pago_adelantado_pymes:  row.PAGO_ADELANTADO_PYMES ? String(row.PAGO_ADELANTADO_PYMES) : null,
+    raw:                    row,
   }
 }
 
@@ -137,54 +175,89 @@ async function syncDataset(
 
   let inserted = 0, updated = 0, skipped = 0, batchErrors: string[] = []
   const BATCH = 100
+  const isSC = dataset.table === 'licitaciones'
+  const pkField = isSC ? 'numero_procedimiento' : 'nro_procedimiento'
 
   const normalized = rows.map(row => {
     const norm = dataset.normalizer(row)
     if (!norm) return null
-    // Exclude raw from batch to keep payload small; store separately
     const { raw, ...rest } = norm as any
-    return { ...rest, keywords: extractKeywords(norm) }
+    return isSC ? { ...rest, keywords: extractKeywords(norm as any) } : rest
   }).filter(Boolean) as any[]
 
   skipped += rows.length - normalized.length
 
-  // Deduplicate by numero_procedimiento (SICOP can have dupes in same file)
+  // Deduplicate by primary key (SICOP can have dupes in same file)
   const deduped = Array.from(
-    normalized.reduce((m, r) => m.set(r.numero_procedimiento, r), new Map()).values()
+    normalized.reduce((m, r) => m.set(r[pkField], r), new Map()).values()
   )
   skipped += normalized.length - deduped.length
 
   for (let i = 0; i < deduped.length; i += BATCH) {
     const batch = deduped.slice(i, i + BATCH)
     try {
-      const result = await sql`
-        insert into licitaciones
-          (numero_procedimiento, titulo, institucion, tipo_procedimiento, monto_estimado,
-           currency, fecha_publicacion, fecha_cierre, estado, descripcion, keywords)
-        select
-          r->>'numero_procedimiento',
-          r->>'titulo',
-          r->>'institucion',
-          r->>'tipo_procedimiento',
-          (r->>'monto_estimado')::numeric,
-          coalesce(r->>'currency', 'CRC'),
-          (r->>'fecha_publicacion')::date,
-          (r->>'fecha_cierre')::date,
-          r->>'estado',
-          r->>'descripcion',
-          array(select jsonb_array_elements_text(r->'keywords'))
-        from jsonb_array_elements(${JSON.stringify(batch)}::jsonb) r
-        on conflict (numero_procedimiento) do update set
-          titulo             = excluded.titulo,
-          institucion        = excluded.institucion,
-          tipo_procedimiento = excluded.tipo_procedimiento,
-          monto_estimado     = excluded.monto_estimado,
-          fecha_cierre       = excluded.fecha_cierre,
-          estado             = excluded.estado,
-          keywords           = excluded.keywords,
-          updated_at         = now()
-        returning (xmax = 0) as is_insert
-      `
+      let result: any[]
+      if (isSC) {
+        result = await sql`
+          insert into licitaciones
+            (numero_procedimiento, titulo, institucion, tipo_procedimiento, monto_estimado,
+             currency, fecha_publicacion, fecha_cierre, estado, descripcion, keywords)
+          select
+            r->>'numero_procedimiento',
+            r->>'titulo',
+            r->>'institucion',
+            r->>'tipo_procedimiento',
+            (r->>'monto_estimado')::numeric,
+            coalesce(r->>'currency', 'CRC'),
+            (r->>'fecha_publicacion')::date,
+            (r->>'fecha_cierre')::date,
+            r->>'estado',
+            r->>'descripcion',
+            array(select jsonb_array_elements_text(r->'keywords'))
+          from jsonb_array_elements(${JSON.stringify(batch)}::jsonb) r
+          on conflict (numero_procedimiento) do update set
+            titulo             = excluded.titulo,
+            institucion        = excluded.institucion,
+            tipo_procedimiento = excluded.tipo_procedimiento,
+            monto_estimado     = excluded.monto_estimado,
+            fecha_cierre       = excluded.fecha_cierre,
+            estado             = excluded.estado,
+            keywords           = excluded.keywords,
+            updated_at         = now()
+          returning (xmax = 0) as is_insert
+        `
+      } else {
+        result = await sql`
+          insert into carteles
+            (nro_procedimiento, fecha_cierre, nombre_unidad_compra, cedula_institucion,
+             descripcion, tipo_procedimiento, modalidad, fecha_publicacion,
+             fecha_apertura, fecha_inicio_recepcion, nro_sicop, pago_adelantado_pymes)
+          select
+            r->>'nro_procedimiento',
+            (r->>'fecha_cierre')::date,
+            r->>'nombre_unidad_compra',
+            r->>'cedula_institucion',
+            r->>'descripcion',
+            r->>'tipo_procedimiento',
+            r->>'modalidad',
+            (r->>'fecha_publicacion')::date,
+            (r->>'fecha_apertura')::date,
+            (r->>'fecha_inicio_recepcion')::date,
+            r->>'nro_sicop',
+            r->>'pago_adelantado_pymes'
+          from jsonb_array_elements(${JSON.stringify(batch)}::jsonb) r
+          on conflict (nro_procedimiento) do update set
+            fecha_cierre           = excluded.fecha_cierre,
+            nombre_unidad_compra   = excluded.nombre_unidad_compra,
+            cedula_institucion     = excluded.cedula_institucion,
+            descripcion            = excluded.descripcion,
+            modalidad              = excluded.modalidad,
+            fecha_apertura         = excluded.fecha_apertura,
+            nro_sicop              = excluded.nro_sicop,
+            updated_at             = now()
+          returning (xmax = 0) as is_insert
+        `
+      }
       for (const r of result) {
         if ((r as any).is_insert) inserted++; else updated++
       }
@@ -219,8 +292,9 @@ export async function GET(req: NextRequest) {
     const full = req.nextUrl.searchParams.get('full') === 'true'
     const countRows = await sql`select count(*)::int as n from licitaciones`
     const total = (countRows?.[0] as any)?.n ?? 0
+    const daysBack = new Date(today); daysBack.setDate(daysBack.getDate() - 15)
     const startDate = (total === 0 || full)
-      ? fmtSicop(new Date(today.getFullYear(), today.getMonth() - 3, 1))
+      ? fmtSicop(daysBack)
       : fmtSicop(yesterday)
     const endDate = fmtSicop(today)
 

@@ -143,9 +143,9 @@ export default function Home() {
                         </p>
                       </div>
                     </div>
-                    {row.institucion && (
+                    {(row.nombre_institucion || row.institucion) && (
                       <p style={{ fontSize: 12, color: '#64748B', margin: '6px 0 0' }}>
-                        🏛 {row.institucion}
+                        🏛 {row.nombre_institucion || row.institucion}
                       </p>
                     )}
                   </div>
