@@ -136,22 +136,28 @@ async function syncDataset(
   }
 
   let inserted = 0, updated = 0, skipped = 0
+  const BATCH = 200
 
-  for (const row of rows) {
+  const normalized = rows.map(row => {
     const norm = dataset.normalizer(row)
-    if (!norm) { skipped++; continue }
-    const keywords = extractKeywords(norm)
+    if (!norm) return null
+    return { ...norm, keywords: extractKeywords(norm) }
+  }).filter(Boolean) as any[]
 
+  skipped += rows.length - normalized.length
+
+  for (let i = 0; i < normalized.length; i += BATCH) {
+    const batch = normalized.slice(i, i + BATCH)
     try {
       const result = await sql`
         insert into licitaciones
           (numero_procedimiento, titulo, institucion, tipo_procedimiento, monto_estimado,
            currency, fecha_publicacion, fecha_cierre, estado, descripcion, raw, keywords)
-        values
-          (${norm.numero_procedimiento}, ${norm.titulo}, ${norm.institucion},
-           ${norm.tipo_procedimiento}, ${norm.monto_estimado}, ${norm.currency},
-           ${norm.fecha_publicacion}, ${norm.fecha_cierre}, ${norm.estado},
-           ${norm.descripcion}, ${norm.raw}::jsonb, ${keywords})
+        select * from jsonb_to_recordset(${JSON.stringify(batch)}::jsonb) as t(
+          numero_procedimiento text, titulo text, institucion text, tipo_procedimiento text,
+          monto_estimado numeric, currency text, fecha_publicacion date, fecha_cierre date,
+          estado text, descripcion text, raw jsonb, keywords text[]
+        )
         on conflict (numero_procedimiento) do update set
           titulo             = excluded.titulo,
           institucion        = excluded.institucion,
@@ -164,8 +170,10 @@ async function syncDataset(
           updated_at         = now()
         returning (xmax = 0) as is_insert
       `
-      if (result[0]?.is_insert) inserted++; else updated++
-    } catch { skipped++ }
+      for (const r of result) {
+        if ((r as any).is_insert) inserted++; else updated++
+      }
+    } catch { skipped += batch.length }
   }
 
   await sql`
