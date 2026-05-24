@@ -139,8 +139,13 @@ export default function Home() {
                           {fmtMonto(row.monto_estimado, row.currency)}
                         </p>
                         <p style={{ fontSize: 11, color: '#64748B', margin: '3px 0 0' }}>
-                          {fmtDate(row.fecha_publicacion)}
+                          Publicado: {fmtDate(row.fecha_publicacion)}
                         </p>
+                        {row.fecha_cierre && (
+                          <p style={{ fontSize: 11, fontWeight: 600, color: '#F59E0B', margin: '2px 0 0' }}>
+                            Cierre: {fmtDate(row.fecha_cierre)}
+                          </p>
+                        )}
                       </div>
                     </div>
                     {(row.nombre_institucion || row.institucion) && (
