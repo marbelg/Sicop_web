@@ -153,11 +153,20 @@ async function syncDataset(
         insert into licitaciones
           (numero_procedimiento, titulo, institucion, tipo_procedimiento, monto_estimado,
            currency, fecha_publicacion, fecha_cierre, estado, descripcion, raw, keywords)
-        select * from jsonb_to_recordset(${JSON.stringify(batch)}::jsonb) as t(
-          numero_procedimiento text, titulo text, institucion text, tipo_procedimiento text,
-          monto_estimado numeric, currency text, fecha_publicacion date, fecha_cierre date,
-          estado text, descripcion text, raw jsonb, keywords text[]
-        )
+        select
+          r->>'numero_procedimiento',
+          r->>'titulo',
+          r->>'institucion',
+          r->>'tipo_procedimiento',
+          (r->>'monto_estimado')::numeric,
+          coalesce(r->>'currency', 'CRC'),
+          (r->>'fecha_publicacion')::date,
+          (r->>'fecha_cierre')::date,
+          r->>'estado',
+          r->>'descripcion',
+          (r->'raw')::jsonb,
+          array(select jsonb_array_elements_text(r->'keywords'))
+        from jsonb_array_elements(${JSON.stringify(batch)}::jsonb) r
         on conflict (numero_procedimiento) do update set
           titulo             = excluded.titulo,
           institucion        = excluded.institucion,
