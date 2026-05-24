@@ -64,7 +64,7 @@ export default function ImportPage() {
           <input
             ref={inputRef}
             type="file"
-            accept=".csv,.xlsx,.xls"
+            accept=".csv,.xlsx,.xls,.json"
             style={{ display: 'none' }}
             onChange={e => handleFile(e.target.files?.[0] ?? null)}
           />
@@ -78,7 +78,7 @@ export default function ImportPage() {
             <>
               <div style={{ fontSize: 32, marginBottom: 8 }}>📂</div>
               <p style={{ fontWeight: 600 }}>Arrastra el archivo aquí</p>
-              <p style={{ fontSize: 13, color: '#64748B' }}>o haz clic para seleccionar · CSV, XLSX, XLS</p>
+              <p style={{ fontSize: 13, color: '#64748B' }}>o haz clic para seleccionar · CSV, XLSX, XLS, JSON</p>
             </>
           )}
         </div>

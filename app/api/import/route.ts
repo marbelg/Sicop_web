@@ -76,8 +76,18 @@ export async function POST(req: NextRequest) {
       const wb = XLSX.read(buffer, { type: 'buffer', cellDates: true })
       const ws = wb.Sheets[wb.SheetNames[0]]
       rows = XLSX.utils.sheet_to_json(ws, { defval: '' })
+    } else if (filename.endsWith('.json')) {
+      const text = buffer.toString('utf8')
+      const parsed = JSON.parse(text)
+      // Accept array at root, or {data: []}, or {procedimientos: []}, etc.
+      if (Array.isArray(parsed)) {
+        rows = parsed
+      } else {
+        const key = Object.keys(parsed).find(k => Array.isArray(parsed[k]))
+        rows = key ? parsed[key] : [parsed]
+      }
     } else {
-      return NextResponse.json({ error: 'Formato no soportado. Use CSV o Excel.' }, { status: 400 })
+      return NextResponse.json({ error: 'Formato no soportado. Use CSV, Excel o JSON.' }, { status: 400 })
     }
 
     let inserted = 0, updated = 0, skipped = 0
