@@ -148,11 +148,18 @@ export default function Home() {
                         )}
                       </div>
                     </div>
-                    {(row.nombre_institucion || row.institucion) && (
-                      <p style={{ fontSize: 12, color: '#64748B', margin: '6px 0 0' }}>
-                        🏛 {row.nombre_institucion || row.institucion}
-                      </p>
-                    )}
+                    <div style={{ display: 'flex', gap: 12, marginTop: 6, flexWrap: 'wrap' as const }}>
+                      {row.institucion && (
+                        <p style={{ fontSize: 12, color: '#64748B', margin: 0 }}>
+                          🏛 {row.institucion}
+                        </p>
+                      )}
+                      {row.unidad_compra && (
+                        <p style={{ fontSize: 12, color: '#64748B', margin: 0 }}>
+                          📋 {row.unidad_compra}
+                        </p>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>

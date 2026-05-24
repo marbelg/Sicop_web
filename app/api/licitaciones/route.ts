@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
       l.id, l.numero_procedimiento, l.titulo, l.institucion, l.tipo_procedimiento,
       l.monto_estimado, l.currency, l.fecha_publicacion, l.estado, l.score,
       coalesce(c.fecha_cierre, l.fecha_cierre) as fecha_cierre,
-      coalesce(c.nombre_unidad_compra, l.institucion) as nombre_institucion
+      c.nombre_unidad_compra as unidad_compra
     from licitaciones l
     left join carteles c on c.nro_procedimiento = l.numero_procedimiento
     where
