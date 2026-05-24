@@ -57,7 +57,7 @@ function normalizeSC(row: any) {
     fecha_cierre:      null,
     estado:            'Activo',
     descripcion:       row.FINALIDAD_PUBLICA ? String(row.FINALIDAD_PUBLICA).slice(0, 1000) : null,
-    raw:               JSON.stringify(row),
+    raw:               row,
   }
 }
 
