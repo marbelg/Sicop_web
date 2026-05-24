@@ -168,20 +168,20 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const sql = getDb()
-  const today = new Date()
-  const yesterday = new Date(today)
-  yesterday.setDate(yesterday.getDate() - 1)
-
-  // On first run use last 90 days to catch up
-  const countRows = await sql`select count(*)::int as n from licitaciones`
-  const total = (countRows?.[0] as any)?.n ?? 0
-  const startDate = total === 0
-    ? fmtSicop(new Date(today.getFullYear(), today.getMonth() - 3, 1))
-    : fmtSicop(yesterday)
-  const endDate = fmtSicop(today)
-
   try {
+    const sql = getDb()
+    const today = new Date()
+    const yesterday = new Date(today)
+    yesterday.setDate(yesterday.getDate() - 1)
+
+    // On first run use last 90 days to catch up
+    const countRows = await sql`select count(*)::int as n from licitaciones`
+    const total = (countRows?.[0] as any)?.n ?? 0
+    const startDate = total === 0
+      ? fmtSicop(new Date(today.getFullYear(), today.getMonth() - 3, 1))
+      : fmtSicop(yesterday)
+    const endDate = fmtSicop(today)
+
     const sessionId = await fetchSession()
     const results = []
     for (const dataset of DATASETS) {
