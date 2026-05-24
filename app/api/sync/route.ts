@@ -105,11 +105,15 @@ async function syncDataset(
     body,
   })
 
-  if (!res.ok) throw new Error(`HTTP ${res.status} for ${dataset.name}`)
-
   const buffer = Buffer.from(await res.arrayBuffer())
+  const contentType = res.headers.get('content-type') ?? ''
+  const status = res.status
   let rows: any[] = []
   let jsonText = ''
+
+  // Debug: log what we actually received
+  const rawText = buffer.toString('utf8')
+  const hexStart = buffer.slice(0, 4).toString('hex')
 
   // Try ZIP extraction first, fall back to raw text
   try {
@@ -118,7 +122,7 @@ async function syncDataset(
     if (!firstFile) throw new Error('Empty ZIP')
     jsonText = new TextDecoder().decode(firstFile)
   } catch {
-    jsonText = buffer.toString('utf8')
+    jsonText = rawText
   }
 
   try {
@@ -129,7 +133,7 @@ async function syncDataset(
       rows = key ? parsed[key] : []
     }
   } catch {
-    throw new Error(`Cannot parse response from ${dataset.name}: ${jsonText.slice(0, 120)}`)
+    throw new Error(`[${status}] ${contentType} hex:${hexStart} body:${rawText.slice(0, 200)}`)
   }
 
   let inserted = 0, updated = 0, skipped = 0
