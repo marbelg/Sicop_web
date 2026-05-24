@@ -156,7 +156,6 @@ async function syncDataset(
 
   for (let i = 0; i < deduped.length; i += BATCH) {
     const batch = deduped.slice(i, i + BATCH)
-    const batch = normalized.slice(i, i + BATCH)
     try {
       const result = await sql`
         insert into licitaciones
