@@ -14,11 +14,17 @@ export async function GET(req: NextRequest) {
   const rows = await sql`
     select
       l.id, l.numero_procedimiento, l.titulo, l.institucion, l.tipo_procedimiento,
-      l.monto_estimado, l.currency, l.fecha_publicacion, l.estado, l.score,
+      l.monto_estimado, l.currency, l.fecha_publicacion, l.score,
       coalesce(c.fecha_cierre, l.fecha_cierre) as fecha_cierre,
-      c.nombre_unidad_compra as unidad_compra
+      c.nombre_unidad_compra as unidad_compra,
+      case
+        when af.numero_procedimiento is not null and af.desierto then 'Desierta'
+        when af.numero_procedimiento is not null then 'Adjudicada'
+        else 'Activa'
+      end as estado
     from licitaciones l
     left join carteles c on c.nro_procedimiento = l.numero_procedimiento
+    left join adjudicaciones_firme af on af.numero_procedimiento = l.numero_procedimiento
     where
       (${q} = '' or l.titulo ilike ${'%' + q + '%'} or l.descripcion ilike ${'%' + q + '%'})
       and (${tipo} = '' or l.tipo_procedimiento = ${tipo})

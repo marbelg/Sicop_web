@@ -40,6 +40,24 @@ function TipoBadge({ tipo }: { tipo: string }) {
   )
 }
 
+function EstadoBadge({ estado }: { estado: string }) {
+  const map: Record<string, { color: string; label: string }> = {
+    Adjudicada: { color: '#9ED23A', label: 'Adjudicada' },
+    Desierta:   { color: '#94A3B8', label: 'Desierta' },
+    Activa:     { color: '#378ADD', label: 'Activa' },
+  }
+  const { color, label } = map[estado] ?? { color: '#64748B', label: estado }
+  return (
+    <span style={{
+      fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 4,
+      background: color + '22', color, border: `1px solid ${color}44`,
+      letterSpacing: '0.05em',
+    }}>
+      {label}
+    </span>
+  )
+}
+
 export default function Home() {
   const [q, setQ]             = useState('')
   const [tipo, setTipo]       = useState('')
@@ -128,6 +146,7 @@ export default function Home() {
                       <div style={{ flex: 1 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' as const }}>
                           {row.tipo_procedimiento && <TipoBadge tipo={row.tipo_procedimiento} />}
+                          <EstadoBadge estado={row.estado ?? 'Activa'} />
                           <span style={{ fontSize: 11, color: '#475569' }}>{row.numero_procedimiento}</span>
                         </div>
                         <p style={{ fontSize: 14, fontWeight: 600, color: '#E2E8F0', lineHeight: 1.5, margin: 0 }}>
