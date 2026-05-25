@@ -18,6 +18,13 @@ body {
 * { box-sizing: border-box; padding: 0; margin: 0; }
 a { color: inherit; text-decoration: none; }
 
+/* ── Pulse animation for "En recepción" ── */
+@keyframes lf-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.25; }
+}
+.lf-pulse { animation: lf-pulse 1.5s ease-in-out infinite; }
+
 /* ── Header ── */
 .lf-header {
   display: flex;

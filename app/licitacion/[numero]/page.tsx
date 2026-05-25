@@ -26,13 +26,16 @@ function fmtDate(s: string | null) {
   return `${d}/${m}/${y}`
 }
 
-function Badge({ label, color }: { label: string; color: string }) {
+function Badge({ label, color, pulse }: { label: string; color: string; pulse?: boolean }) {
   return (
     <span style={{
       fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 4,
       background: color + '22', color, border: `1px solid ${color}44`,
-      letterSpacing: '0.04em',
-    }}>{label}</span>
+      letterSpacing: '0.04em', display: 'inline-flex', alignItems: 'center', gap: 5,
+    }}>
+      {pulse && <span className="lf-pulse" style={{ width: 6, height: 6, borderRadius: '50%', background: color, flexShrink: 0 }} />}
+      {label}
+    </span>
   )
 }
 
@@ -70,8 +73,18 @@ export default function DetallePage() {
   )
 
   const estadoColor: Record<string, string> = {
-    Adjudicada: '#9ED23A', Desierta: '#94A3B8', Activa: '#378ADD',
+    'En recepción': '#22C55E',
+    'En análisis':  '#F59E0B',
+    'Adjudicada':   '#9ED23A',
+    'Desierta':     '#94A3B8',
   }
+
+  // Compute real estado from dates if not already set
+  const estadoReal = (() => {
+    if (data.estado === 'Adjudicada' || data.estado === 'Desierta') return data.estado
+    const cierre = data.fecha_cierre ? new Date(data.fecha_cierre) : null
+    return cierre && cierre > new Date() ? 'En recepción' : 'En análisis'
+  })()
 
   return (
     <div style={{ minHeight: '100vh', background: '#0A1628', color: '#E2E8F0', fontFamily: 'system-ui, sans-serif' }}>
@@ -97,7 +110,7 @@ export default function DetallePage() {
                 {data.tipo_procedimiento && (
                   <Badge label={`[${data.tipo_procedimiento}] ${TIPO_LABELS[data.tipo_procedimiento] ?? data.tipo_procedimiento}`} color="#378ADD" />
                 )}
-                <Badge label={data.estado} color={estadoColor[data.estado] ?? '#64748B'} />
+                <Badge label={estadoReal} color={estadoColor[estadoReal] ?? '#64748B'} pulse={estadoReal === 'En recepción'} />
                 {data.nro_sicop && (
                   <span style={{
                     fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 4,

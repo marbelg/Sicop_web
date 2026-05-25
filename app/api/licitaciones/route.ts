@@ -21,8 +21,12 @@ export async function GET(req: NextRequest) {
 
   const sql = getDb()
 
-  // Dynamic ORDER BY using CASE WHEN so each branch returns NULL for the others — nulls last means
-  // only the active branch actually affects ordering. All user input stays properly parameterized.
+  // Estado real SICOP (4 states):
+  //   En recepción → sin adjudicación + fecha_cierre futura
+  //   En análisis  → sin adjudicación + fecha_cierre pasada o sin fecha
+  //   Adjudicada   → adjudicación firme, no desierta
+  //   Desierta     → adjudicación firme, desierta
+
   const rows = await sql`
     select
       l.id, l.numero_procedimiento, l.titulo, l.institucion, l.tipo_procedimiento,
@@ -31,9 +35,10 @@ export async function GET(req: NextRequest) {
       c.nombre_unidad_compra as unidad_compra,
       i.nombre_institucion,
       case
-        when af.numero_procedimiento is not null and af.desierto then 'Desierta'
-        when af.numero_procedimiento is not null then 'Adjudicada'
-        else 'Activa'
+        when af.numero_procedimiento is not null and af.desierto    then 'Desierta'
+        when af.numero_procedimiento is not null                    then 'Adjudicada'
+        when coalesce(c.fecha_cierre, l.fecha_cierre) > now()      then 'En recepción'
+        else 'En análisis'
       end as estado
     from licitaciones l
     left join carteles c on c.nro_procedimiento = l.numero_procedimiento
@@ -47,9 +52,10 @@ export async function GET(req: NextRequest) {
       and (${montoMax}::float8 = 0 or l.monto_estimado <= ${montoMax}::float8)
       and (${estado} = '' or
         case
-          when af.numero_procedimiento is not null and af.desierto then 'Desierta'
-          when af.numero_procedimiento is not null then 'Adjudicada'
-          else 'Activa'
+          when af.numero_procedimiento is not null and af.desierto   then 'Desierta'
+          when af.numero_procedimiento is not null                   then 'Adjudicada'
+          when coalesce(c.fecha_cierre, l.fecha_cierre) > now()     then 'En recepción'
+          else 'En análisis'
         end = ${estado})
       and (${proveedor} = '' or exists (
         select 1 from ofertas o2
@@ -64,6 +70,7 @@ export async function GET(req: NextRequest) {
 
   const countRows = await sql`
     select count(*)::int as n from licitaciones l
+    left join carteles c on c.nro_procedimiento = l.numero_procedimiento
     left join adjudicaciones_firme af on af.numero_procedimiento = l.numero_procedimiento
     left join instituciones i on i.cedula = l.institucion
     where
@@ -74,9 +81,10 @@ export async function GET(req: NextRequest) {
       and (${montoMax}::float8 = 0 or l.monto_estimado <= ${montoMax}::float8)
       and (${estado} = '' or
         case
-          when af.numero_procedimiento is not null and af.desierto then 'Desierta'
-          when af.numero_procedimiento is not null then 'Adjudicada'
-          else 'Activa'
+          when af.numero_procedimiento is not null and af.desierto   then 'Desierta'
+          when af.numero_procedimiento is not null                   then 'Adjudicada'
+          when coalesce(c.fecha_cierre, l.fecha_cierre) > now()     then 'En recepción'
+          else 'En análisis'
         end = ${estado})
       and (${proveedor} = '' or exists (
         select 1 from ofertas o2

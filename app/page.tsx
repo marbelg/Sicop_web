@@ -19,7 +19,10 @@ const TIPO_COLORS: Record<string, string> = {
   SE: '#F472B6',
 }
 const ESTADO_COLORS: Record<string, string> = {
-  Adjudicada: '#9ED23A', Desierta: '#94A3B8', Activa: '#378ADD',
+  'En recepción': '#22C55E',
+  'En análisis':  '#F59E0B',
+  'Adjudicada':   '#9ED23A',
+  'Desierta':     '#94A3B8',
 }
 
 const MONTO_PRESETS = [
@@ -49,13 +52,17 @@ function fmtDate(s: string | null) {
   return `${d}/${m}/${y}`
 }
 
-function Badge({ label, color }: { label: string; color: string }) {
+function Badge({ label, color, pulse }: { label: string; color: string; pulse?: boolean }) {
   return (
     <span style={{
       fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 4,
       background: color + '22', color, border: `1px solid ${color}44`,
       letterSpacing: '0.04em', whiteSpace: 'nowrap' as const,
-    }}>{label}</span>
+      display: 'inline-flex', alignItems: 'center', gap: 4,
+    }}>
+      {pulse && <span className="lf-pulse" style={{ width: 5, height: 5, borderRadius: '50%', background: color, display: 'inline-block', flexShrink: 0 }} />}
+      {label}
+    </span>
   )
 }
 
@@ -221,9 +228,10 @@ export default function Home() {
           <div style={{ display: 'flex', gap: 4 }}>
             {[
               { v: '', l: 'Todas' },
-              { v: 'Activa', l: 'Activas' },
-              { v: 'Adjudicada', l: 'Adjudicadas' },
-              { v: 'Desierta', l: 'Desiertas' },
+              { v: 'En recepción', l: 'En recepción' },
+              { v: 'En análisis',  l: 'En análisis' },
+              { v: 'Adjudicada',   l: 'Adjudicadas' },
+              { v: 'Desierta',     l: 'Desiertas' },
             ].map(opt => {
               const active = gEstado === opt.v
               const color  = opt.v ? (ESTADO_COLORS[opt.v] ?? '#64748B') : '#64748B'
@@ -269,7 +277,8 @@ export default function Home() {
         {/* Stats row */}
         <div className="lf-stats" style={{ marginBottom: 18 }}>
           <StatCard label="Total" value={dashLoading ? '…' : (stats?.total?.toLocaleString() ?? '—')} />
-          <StatCard label="Activas" value={dashLoading ? '…' : (stats?.activas?.toLocaleString() ?? '—')} color="#378ADD" />
+          <StatCard label="En recepción" value={dashLoading ? '…' : (stats?.en_recepcion?.toLocaleString() ?? '—')} color="#22C55E" sub="plazo abierto" />
+          <StatCard label="En análisis" value={dashLoading ? '…' : (stats?.en_analisis?.toLocaleString() ?? '—')} color="#F59E0B" sub="plazo cerrado" />
           <StatCard label="Adjudicadas" value={dashLoading ? '…' : (stats?.adjudicadas?.toLocaleString() ?? '—')} color="#9ED23A" />
           <StatCard label="Desiertas" value={dashLoading ? '…' : (stats?.desiertas?.toLocaleString() ?? '—')} color="#94A3B8" />
           {Number(stats?.monto_total_crc) > 0 && (
@@ -489,7 +498,7 @@ export default function Home() {
                               {row.tipo_procedimiento && (
                                 <Badge label={`[${row.tipo_procedimiento}] ${TIPO_LABELS[row.tipo_procedimiento] ?? row.tipo_procedimiento}`} color={TIPO_COLORS[row.tipo_procedimiento] ?? '#64748B'} />
                               )}
-                              <Badge label={row.estado ?? 'Activa'} color={ESTADO_COLORS[row.estado] ?? '#378ADD'} />
+                              <Badge label={row.estado ?? 'En análisis'} color={ESTADO_COLORS[row.estado] ?? '#F59E0B'} pulse={row.estado === 'En recepción'} />
                               <span style={{ fontSize: 10, color: '#334155', fontFamily: 'monospace' }}>{row.numero_procedimiento}</span>
                             </div>
                             <p style={{ fontSize: 13, fontWeight: 600, color: '#E2E8F0', lineHeight: 1.5, margin: 0 }}>
