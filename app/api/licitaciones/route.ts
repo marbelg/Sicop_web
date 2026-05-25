@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
     left join adjudicaciones_firme af on af.numero_procedimiento = l.numero_procedimiento
     left join instituciones i on i.cedula = l.institucion
     where
-      (${q} = '' or l.titulo ilike ${'%' + q + '%'} or l.descripcion ilike ${'%' + q + '%'})
+      (${q} = '' or l.titulo ilike ${'%' + q + '%'} or l.descripcion ilike ${'%' + q + '%'} or l.numero_procedimiento ilike ${'%' + q + '%'})
       and (${tipo} = '' or l.tipo_procedimiento = ${tipo})
       and (${estado} = '' or
         case
@@ -45,7 +45,7 @@ export async function GET(req: NextRequest) {
     select count(*)::int as n from licitaciones l
     left join adjudicaciones_firme af on af.numero_procedimiento = l.numero_procedimiento
     where
-      (${q} = '' or l.titulo ilike ${'%' + q + '%'} or l.descripcion ilike ${'%' + q + '%'})
+      (${q} = '' or l.titulo ilike ${'%' + q + '%'} or l.descripcion ilike ${'%' + q + '%'} or l.numero_procedimiento ilike ${'%' + q + '%'})
       and (${tipo} = '' or l.tipo_procedimiento = ${tipo})
       and (${estado} = '' or
         case
