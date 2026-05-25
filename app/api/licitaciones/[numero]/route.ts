@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getDb } from '@/lib/db'
 
-export async function GET(_req: NextRequest, { params }: { params: { numero: string } }) {
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ numero: string }> }) {
   const sql = getDb()
-  const numero = decodeURIComponent(params.numero)
+  const { numero: rawNumero } = await params
+  const numero = decodeURIComponent(rawNumero)
 
   const rows = await sql`
     select
