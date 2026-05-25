@@ -3,12 +3,15 @@ import { getDb } from '@/lib/db'
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
-  const q      = searchParams.get('q') ?? ''
-  const tipo   = searchParams.get('tipo') ?? ''
-  const estado = searchParams.get('estado') ?? ''
-  const page   = Math.max(1, parseInt(searchParams.get('page') ?? '1'))
-  const limit  = 20
-  const offset = (page - 1) * limit
+  const q        = searchParams.get('q') ?? ''
+  const tipo     = searchParams.get('tipo') ?? ''
+  const estado   = searchParams.get('estado') ?? ''
+  const inst     = searchParams.get('inst') ?? ''
+  const montoMin = parseFloat(searchParams.get('montoMin') ?? '0') || 0
+  const montoMax = parseFloat(searchParams.get('montoMax') ?? '0') || 0
+  const page     = Math.max(1, parseInt(searchParams.get('page') ?? '1'))
+  const limit    = 20
+  const offset   = (page - 1) * limit
 
   const sql = getDb()
 
@@ -31,6 +34,9 @@ export async function GET(req: NextRequest) {
     where
       (${q} = '' or l.titulo ilike ${'%' + q + '%'} or l.descripcion ilike ${'%' + q + '%'} or l.numero_procedimiento ilike ${'%' + q + '%'})
       and (${tipo} = '' or l.tipo_procedimiento = ${tipo})
+      and (${inst} = '' or coalesce(i.nombre_institucion, l.institucion) ilike ${'%' + inst + '%'})
+      and (${montoMin} = 0 or l.monto_estimado >= ${montoMin})
+      and (${montoMax} = 0 or l.monto_estimado <= ${montoMax})
       and (${estado} = '' or
         case
           when af.numero_procedimiento is not null and af.desierto then 'Desierta'
@@ -44,9 +50,13 @@ export async function GET(req: NextRequest) {
   const countRows = await sql`
     select count(*)::int as n from licitaciones l
     left join adjudicaciones_firme af on af.numero_procedimiento = l.numero_procedimiento
+    left join instituciones i on i.cedula = l.institucion
     where
       (${q} = '' or l.titulo ilike ${'%' + q + '%'} or l.descripcion ilike ${'%' + q + '%'} or l.numero_procedimiento ilike ${'%' + q + '%'})
       and (${tipo} = '' or l.tipo_procedimiento = ${tipo})
+      and (${inst} = '' or coalesce(i.nombre_institucion, l.institucion) ilike ${'%' + inst + '%'})
+      and (${montoMin} = 0 or l.monto_estimado >= ${montoMin})
+      and (${montoMax} = 0 or l.monto_estimado <= ${montoMax})
       and (${estado} = '' or
         case
           when af.numero_procedimiento is not null and af.desierto then 'Desierta'
@@ -62,7 +72,7 @@ export async function GET(req: NextRequest) {
     where tipo_procedimiento is not null
     group by tipo_procedimiento
     order by n desc
-    limit 10
+    limit 15
   `
 
   return NextResponse.json({ rows, total, page, limit, tipos })
