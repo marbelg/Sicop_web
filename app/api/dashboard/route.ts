@@ -1,7 +1,12 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { getDb } from '@/lib/db'
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const { searchParams } = new URL(req.url)
+  const montoMin = parseFloat(searchParams.get('montoMin') ?? '0') || 0
+  const montoMax = parseFloat(searchParams.get('montoMax') ?? '0') || 0
+  const estado   = searchParams.get('estado') ?? ''
+
   const sql = getDb()
 
   const [stats, topInstituciones, topOferentes, porTipo] = await Promise.all([
@@ -15,6 +20,15 @@ export async function GET() {
         coalesce(sum(l.monto_estimado) filter (where l.currency = 'USD'), 0)::numeric as monto_total_usd
       from licitaciones l
       left join adjudicaciones_firme af on af.numero_procedimiento = l.numero_procedimiento
+      where
+        (${montoMin}::float8 = 0 or l.monto_estimado >= ${montoMin}::float8)
+        and (${montoMax}::float8 = 0 or l.monto_estimado <= ${montoMax}::float8)
+        and (${estado} = '' or
+          case
+            when af.numero_procedimiento is not null and af.desierto then 'Desierta'
+            when af.numero_procedimiento is not null then 'Adjudicada'
+            else 'Activa'
+          end = ${estado})
     `,
     sql`
       select
@@ -24,7 +38,16 @@ export async function GET() {
       from licitaciones l
       left join instituciones i on i.cedula = l.institucion
       left join adjudicaciones_firme af on af.numero_procedimiento = l.numero_procedimiento
-      where l.institucion is not null
+      where
+        l.institucion is not null
+        and (${montoMin}::float8 = 0 or l.monto_estimado >= ${montoMin}::float8)
+        and (${montoMax}::float8 = 0 or l.monto_estimado <= ${montoMax}::float8)
+        and (${estado} = '' or
+          case
+            when af.numero_procedimiento is not null and af.desierto then 'Desierta'
+            when af.numero_procedimiento is not null then 'Adjudicada'
+            else 'Activa'
+          end = ${estado})
       group by coalesce(i.nombre_institucion, l.institucion)
       order by total desc
       limit 10
@@ -37,6 +60,17 @@ export async function GET() {
         count(distinct o.numero_procedimiento)::int as licitaciones
       from ofertas o
       left join proveedores p on p.cedula_proveedor = o.cedula_proveedor
+      left join licitaciones l on l.numero_procedimiento = o.numero_procedimiento
+      left join adjudicaciones_firme af on af.numero_procedimiento = o.numero_procedimiento
+      where
+        (${montoMin}::float8 = 0 or l.monto_estimado >= ${montoMin}::float8)
+        and (${montoMax}::float8 = 0 or l.monto_estimado <= ${montoMax}::float8)
+        and (${estado} = '' or
+          case
+            when af.numero_procedimiento is not null and af.desierto then 'Desierta'
+            when af.numero_procedimiento is not null then 'Adjudicada'
+            else 'Activa'
+          end = ${estado})
       group by o.cedula_proveedor, p.nombre_proveedor
       order by total_ofertas desc
       limit 10
@@ -48,7 +82,16 @@ export async function GET() {
         count(*) filter (where af.numero_procedimiento is not null and not af.desierto)::int as adjudicadas
       from licitaciones l
       left join adjudicaciones_firme af on af.numero_procedimiento = l.numero_procedimiento
-      where l.tipo_procedimiento is not null
+      where
+        l.tipo_procedimiento is not null
+        and (${montoMin}::float8 = 0 or l.monto_estimado >= ${montoMin}::float8)
+        and (${montoMax}::float8 = 0 or l.monto_estimado <= ${montoMax}::float8)
+        and (${estado} = '' or
+          case
+            when af.numero_procedimiento is not null and af.desierto then 'Desierta'
+            when af.numero_procedimiento is not null then 'Adjudicada'
+            else 'Activa'
+          end = ${estado})
       group by l.tipo_procedimiento
       order by total desc
     `,
