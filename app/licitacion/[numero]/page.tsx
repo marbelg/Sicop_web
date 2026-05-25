@@ -98,17 +98,19 @@ export default function DetallePage() {
                   <Badge label={`[${data.tipo_procedimiento}] ${TIPO_LABELS[data.tipo_procedimiento] ?? data.tipo_procedimiento}`} color="#378ADD" />
                 )}
                 <Badge label={data.estado} color={estadoColor[data.estado] ?? '#64748B'} />
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '0 0 8px', flexWrap: 'wrap' as const }}>
-                <p style={{ fontSize: 11, color: '#475569', margin: 0, fontFamily: 'monospace' }}>
-                  {data.numero_procedimiento}
-                </p>
                 {data.nro_sicop && (
-                  <p style={{ fontSize: 11, color: '#475569', margin: 0, fontFamily: 'monospace' }}>
-                    · SICOP: <span style={{ color: '#9ED23A' }}>{data.nro_sicop}</span>
-                  </p>
+                  <span style={{
+                    fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 4,
+                    background: '#9ED23A22', color: '#9ED23A', border: '1px solid #9ED23A44',
+                    letterSpacing: '0.04em', fontFamily: 'monospace',
+                  }}>
+                    SICOP #{data.nro_sicop}
+                  </span>
                 )}
               </div>
+              <p style={{ fontSize: 11, color: '#475569', margin: '0 0 8px', fontFamily: 'monospace' }}>
+                {data.numero_procedimiento}
+              </p>
               <p style={{ fontSize: 17, fontWeight: 700, color: '#E2E8F0', lineHeight: 1.5, margin: 0 }}>
                 {data.titulo ?? '—'}
               </p>
@@ -151,6 +153,11 @@ export default function DetallePage() {
             <p style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase' as const, letterSpacing: '0.08em', margin: '0 0 14px' }}>
               Fechas
             </p>
+            {data.nro_sicop && (
+              <Row label="N° SICOP" value={
+                <span style={{ color: '#9ED23A', fontFamily: 'monospace', fontWeight: 700 }}>{data.nro_sicop}</span>
+              } />
+            )}
             <Row label="Publicado" value={fmtDate(data.fecha_publicacion)} />
             {data.fecha_cierre && (
               <Row label="Cierre ofertas" value={
