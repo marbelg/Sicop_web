@@ -1,144 +1,171 @@
 'use client'
-import { useState, useRef } from 'react'
+import { useState, useEffect } from 'react'
+
+const DATASETS = [
+  'solicitudes', 'carteles', 'ofertas', 'adjudicaciones_firme',
+  'contratos', 'ordenes_pedido', 'instituciones', 'proveedores',
+]
+
+function StatBox({ label, value, color }: { label: string; value: number; color: string }) {
+  return (
+    <div style={{ textAlign: 'center', padding: '10px 8px', background: '#0A1628', borderRadius: 8 }}>
+      <p style={{ fontSize: 20, fontWeight: 800, color, margin: 0 }}>{value.toLocaleString()}</p>
+      <p style={{ fontSize: 11, color: '#64748B', margin: '2px 0 0' }}>{label}</p>
+    </div>
+  )
+}
 
 export default function ImportPage() {
-  const [file, setFile]       = useState<File | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [result, setResult]   = useState<any>(null)
-  const [error, setError]     = useState<string | null>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const [loading, setLoading]   = useState(false)
+  const [results, setResults]   = useState<any[] | null>(null)
+  const [logs, setLogs]         = useState<any[]>([])
+  const [range, setRange]       = useState('')
+  const [from, setFrom]         = useState('')
+  const [to, setTo]             = useState('')
+  const [mode, setMode]         = useState<'full' | 'range'>('full')
 
-  const handleFile = (f: File | null) => {
-    setFile(f)
-    setResult(null)
-    setError(null)
+  useEffect(() => { fetchLogs() }, [])
+
+  async function fetchLogs() {
+    const res = await fetch('/api/sync-logs')
+    if (res.ok) setLogs(await res.json())
   }
 
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault()
-    handleFile(e.dataTransfer.files[0] ?? null)
-  }
-
-  const handleImport = async () => {
-    if (!file) return
+  async function runSync() {
     setLoading(true)
-    setError(null)
+    setResults(null)
     try {
-      const fd = new FormData()
-      fd.append('file', file)
-      const res = await fetch('/api/import', { method: 'POST', body: fd })
+      const body = mode === 'range' ? { from, to } : { full: true }
+      const res  = await fetch('/api/trigger-sync', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error)
-      setResult(data)
-    } catch (e: any) {
-      setError(e.message)
+      setResults(data.results ?? [])
+      setRange(data.range ?? '')
+      fetchLogs()
     } finally {
       setLoading(false)
     }
   }
 
+  const canRun = mode === 'full' || (from.length === 8 && to.length === 8)
+
   return (
-    <div style={{ minHeight: '100vh', background: '#0A1628', color: '#E2E8F0', fontFamily: 'system-ui, sans-serif', padding: '40px 24px' }}>
-      <div style={{ maxWidth: 600, margin: '0 auto' }}>
-        <h1 style={{ fontSize: 24, fontWeight: 700, marginBottom: 4 }}>Importar datos SICOP</h1>
-        <p style={{ color: '#64748B', fontSize: 14, marginBottom: 32 }}>
-          Sube el archivo CSV o Excel descargado del portal de datos abiertos del SICOP.
-        </p>
+    <div style={{ minHeight: '100vh', background: '#0A1628', color: '#E2E8F0', fontFamily: 'system-ui, sans-serif' }}>
 
-        {/* Drop zone */}
-        <div
-          onDrop={handleDrop}
-          onDragOver={e => e.preventDefault()}
-          onClick={() => inputRef.current?.click()}
-          style={{
-            border: `2px dashed ${file ? '#9ED23A' : '#1E3A5F'}`,
-            borderRadius: 12,
-            padding: '48px 24px',
-            textAlign: 'center',
-            cursor: 'pointer',
-            background: file ? 'rgba(158,210,58,0.05)' : '#0F1F35',
-            transition: 'all 0.2s',
-            marginBottom: 24,
-          }}
-        >
-          <input
-            ref={inputRef}
-            type="file"
-            accept=".csv,.xlsx,.xls,.json"
-            style={{ display: 'none' }}
-            onChange={e => handleFile(e.target.files?.[0] ?? null)}
-          />
-          {file ? (
-            <>
-              <div style={{ fontSize: 32, marginBottom: 8 }}>📄</div>
-              <p style={{ fontWeight: 600, color: '#9ED23A' }}>{file.name}</p>
-              <p style={{ fontSize: 13, color: '#64748B' }}>{(file.size / 1024).toFixed(1)} KB</p>
-            </>
-          ) : (
-            <>
-              <div style={{ fontSize: 32, marginBottom: 8 }}>📂</div>
-              <p style={{ fontWeight: 600 }}>Arrastra el archivo aquí</p>
-              <p style={{ fontSize: 13, color: '#64748B' }}>o haz clic para seleccionar · CSV, XLSX, XLS, JSON</p>
-            </>
-          )}
+      {/* Header */}
+      <div style={{ background: '#0F1F35', borderBottom: '1px solid #1E3A5F', padding: '16px 24px', display: 'flex', alignItems: 'center', gap: 16 }}>
+        <a href="/" style={{ color: '#64748B', textDecoration: 'none', fontSize: 13 }}>← Volver</a>
+        <div>
+          <span style={{ fontSize: 18, fontWeight: 800, color: '#9ED23A' }}>Licita</span>
+          <span style={{ fontSize: 18, fontWeight: 800 }}>Fácil</span>
         </div>
+        <span style={{ fontSize: 14, color: '#64748B' }}>/ Sincronización SICOP</span>
+      </div>
 
-        {file && !result && (
-          <button
-            onClick={handleImport}
-            disabled={loading}
-            style={{
-              width: '100%', padding: '14px', borderRadius: 8, border: 'none',
-              background: loading ? '#1E3A5F' : '#9ED23A', color: loading ? '#64748B' : '#0A1628',
-              fontWeight: 700, fontSize: 15, cursor: loading ? 'not-allowed' : 'pointer',
-            }}
-          >
-            {loading ? 'Procesando...' : 'Importar datos'}
-          </button>
-        )}
+      <div style={{ maxWidth: 900, margin: '32px auto', padding: '0 24px' }}>
 
-        {error && (
-          <div style={{ marginTop: 16, padding: 16, background: 'rgba(239,68,68,0.1)', borderRadius: 8, border: '1px solid rgba(239,68,68,0.3)', color: '#F87171' }}>
-            {error}
+        {/* Sync controls */}
+        <div style={{ background: '#0F1F35', border: '1px solid #1E3A5F', borderRadius: 12, padding: 24, marginBottom: 24 }}>
+          <p style={{ fontSize: 16, fontWeight: 700, margin: '0 0 16px' }}>Sincronizar datos desde SICOP</p>
+
+          <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+            {(['full', 'range'] as const).map(m => (
+              <button key={m} onClick={() => setMode(m)} style={{
+                padding: '7px 16px', borderRadius: 6, border: '1px solid #1E3A5F', cursor: 'pointer', fontSize: 13,
+                background: mode === m ? '#1E3A5F' : 'transparent', color: mode === m ? '#9ED23A' : '#64748B',
+              }}>
+                {m === 'full' ? 'Último mes' : 'Rango específico'}
+              </button>
+            ))}
           </div>
-        )}
 
-        {result && (
-          <div style={{ marginTop: 16, padding: 24, background: '#0F1F35', borderRadius: 12, border: '1px solid #1E3A5F' }}>
-            <p style={{ fontWeight: 700, color: '#9ED23A', marginBottom: 16, fontSize: 16 }}>✓ Importación completada</p>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
-              {[
-                { label: 'Nuevas', value: result.inserted, color: '#9ED23A' },
-                { label: 'Actualizadas', value: result.updated, color: '#378ADD' },
-                { label: 'Omitidas', value: result.skipped, color: '#64748B' },
-              ].map(s => (
-                <div key={s.label} style={{ textAlign: 'center', padding: 16, background: '#0A1628', borderRadius: 8 }}>
-                  <p style={{ fontSize: 28, fontWeight: 800, color: s.color }}>{s.value}</p>
-                  <p style={{ fontSize: 12, color: '#64748B', marginTop: 4 }}>{s.label}</p>
-                </div>
-              ))}
+          {mode === 'range' && (
+            <div style={{ display: 'flex', gap: 12, marginBottom: 16, alignItems: 'center' }}>
+              <div>
+                <p style={{ fontSize: 11, color: '#64748B', margin: '0 0 4px' }}>Desde (DDMMAAAA)</p>
+                <input value={from} onChange={e => setFrom(e.target.value)} placeholder="01042026"
+                  style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid #1E3A5F', background: '#0A1628', color: '#E2E8F0', fontSize: 14, width: 120 }} />
+              </div>
+              <div>
+                <p style={{ fontSize: 11, color: '#64748B', margin: '0 0 4px' }}>Hasta (DDMMAAAA)</p>
+                <input value={to} onChange={e => setTo(e.target.value)} placeholder="30042026"
+                  style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid #1E3A5F', background: '#0A1628', color: '#E2E8F0', fontSize: 14, width: 120 }} />
+              </div>
             </div>
-            <p style={{ marginTop: 16, fontSize: 13, color: '#64748B', textAlign: 'center' }}>
-              Total procesadas: {result.total} filas
+          )}
+
+          <button onClick={runSync} disabled={loading || !canRun} style={{
+            padding: '12px 32px', borderRadius: 8, border: 'none', cursor: loading || !canRun ? 'not-allowed' : 'pointer',
+            background: loading || !canRun ? '#1E3A5F' : '#9ED23A', color: loading || !canRun ? '#64748B' : '#0A1628',
+            fontWeight: 700, fontSize: 14,
+          }}>
+            {loading ? 'Sincronizando...' : 'Sincronizar ahora'}
+          </button>
+          {loading && <p style={{ fontSize: 12, color: '#64748B', marginTop: 8 }}>Esto puede tardar 1-2 minutos...</p>}
+        </div>
+
+        {/* Results */}
+        {results && (
+          <div style={{ background: '#0F1F35', border: '1px solid #1E3A5F', borderRadius: 12, padding: 24, marginBottom: 24 }}>
+            <p style={{ fontSize: 14, fontWeight: 700, color: '#9ED23A', margin: '0 0 16px' }}>
+              Resultado — rango {range}
             </p>
-            <button
-              onClick={() => { setFile(null); setResult(null); if (inputRef.current) inputRef.current.value = '' }}
-              style={{ marginTop: 16, width: '100%', padding: 10, borderRadius: 8, border: '1px solid #1E3A5F', background: 'transparent', color: '#9ED23A', cursor: 'pointer', fontSize: 13 }}
-            >
-              Importar otro archivo
-            </button>
+            <table style={{ width: '100%', borderCollapse: 'collapse' as const, fontSize: 13 }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid #1E3A5F' }}>
+                  {['Dataset', 'Total SICOP', 'Nuevos', 'Actualizados', 'Omitidos', 'Estado'].map(h => (
+                    <th key={h} style={{ padding: '8px 12px', textAlign: 'left' as const, color: '#64748B', fontWeight: 600 }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {results.map((r: any) => (
+                  <tr key={r.dataset} style={{ borderBottom: '1px solid #0A1628' }}>
+                    <td style={{ padding: '10px 12px', fontWeight: 600 }}>{r.dataset}</td>
+                    <td style={{ padding: '10px 12px', color: '#94A3B8' }}>{r.total?.toLocaleString() ?? '—'}</td>
+                    <td style={{ padding: '10px 12px', color: '#9ED23A' }}>{r.inserted?.toLocaleString() ?? '—'}</td>
+                    <td style={{ padding: '10px 12px', color: '#378ADD' }}>{r.updated?.toLocaleString() ?? '—'}</td>
+                    <td style={{ padding: '10px 12px', color: '#64748B' }}>{r.skipped?.toLocaleString() ?? '—'}</td>
+                    <td style={{ padding: '10px 12px' }}>
+                      {r.error
+                        ? <span style={{ color: '#F87171', fontSize: 11 }}>❌ {r.error.slice(0, 50)}</span>
+                        : r.firstError
+                          ? <span style={{ color: '#F59E0B', fontSize: 11 }}>⚠ {r.firstError.slice(0, 50)}</span>
+                          : <span style={{ color: '#9ED23A', fontSize: 11 }}>✓ OK</span>
+                      }
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
 
-        <div style={{ marginTop: 40, padding: 16, background: '#0F1F35', borderRadius: 8, border: '1px solid #1E3A5F' }}>
-          <p style={{ fontSize: 12, color: '#64748B', marginBottom: 8, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Cómo descargar los datos del SICOP</p>
-          <ol style={{ fontSize: 13, color: '#94A3B8', lineHeight: 1.8, paddingLeft: 20, margin: 0 }}>
-            <li>Ingresa al portal de datos abiertos del SICOP</li>
-            <li>Selecciona el dataset de <strong style={{ color: '#E2E8F0' }}>Procedimientos</strong> o <strong style={{ color: '#E2E8F0' }}>Adjudicaciones</strong></li>
-            <li>Descarga el archivo en formato CSV o Excel</li>
-            <li>Sube el archivo aquí</li>
-          </ol>
-        </div>
+        {/* Sync history */}
+        {logs.length > 0 && (
+          <div style={{ background: '#0F1F35', border: '1px solid #1E3A5F', borderRadius: 12, padding: 24 }}>
+            <p style={{ fontSize: 14, fontWeight: 700, margin: '0 0 16px' }}>Historial de sincronizaciones</p>
+            <table style={{ width: '100%', borderCollapse: 'collapse' as const, fontSize: 12 }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid #1E3A5F' }}>
+                  {['Fecha', 'Dataset', 'Nuevos', 'Actualizados', 'Omitidos'].map(h => (
+                    <th key={h} style={{ padding: '6px 12px', textAlign: 'left' as const, color: '#64748B' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {logs.map((l: any, i: number) => (
+                  <tr key={i} style={{ borderBottom: '1px solid #0A162855' }}>
+                    <td style={{ padding: '8px 12px', color: '#64748B' }}>{new Date(l.created_at).toLocaleString('es-CR')}</td>
+                    <td style={{ padding: '8px 12px', fontWeight: 600 }}>{l.dataset}</td>
+                    <td style={{ padding: '8px 12px', color: '#9ED23A' }}>{l.rows_inserted?.toLocaleString()}</td>
+                    <td style={{ padding: '8px 12px', color: '#378ADD' }}>{l.rows_updated?.toLocaleString()}</td>
+                    <td style={{ padding: '8px 12px', color: '#64748B' }}>{l.rows_skipped?.toLocaleString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   )
