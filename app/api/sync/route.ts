@@ -675,6 +675,29 @@ export async function GET(req: NextRequest) {
         results.push({ dataset: dataset.name, error: e.message })
       }
     }
+
+    // Backfill: create licitaciones from carteles when no match exists
+    const backfill = await sql`
+      insert into licitaciones
+        (numero_procedimiento, titulo, descripcion, tipo_procedimiento,
+         institucion, fecha_publicacion, fecha_cierre, estado, currency)
+      select
+        c.nro_procedimiento,
+        c.descripcion,
+        c.descripcion,
+        c.tipo_procedimiento,
+        c.cedula_institucion,
+        c.fecha_publicacion,
+        c.fecha_cierre,
+        'Activo',
+        'CRC'
+      from carteles c
+      left join licitaciones l on l.numero_procedimiento = c.nro_procedimiento
+      where l.id is null
+      on conflict (numero_procedimiento) do nothing
+    `
+    results.push({ dataset: 'backfill_carteles', inserted: backfill.count ?? 0 })
+
     return NextResponse.json({ ok: true, range: `${startDate}→${endDate}`, results })
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: e.message, stack: e.stack?.split('\n').slice(0,3) }, { status: 500 })
