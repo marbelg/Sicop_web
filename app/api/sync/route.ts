@@ -696,7 +696,7 @@ export async function GET(req: NextRequest) {
       where l.id is null
       on conflict (numero_procedimiento) do nothing
     `
-    results.push({ dataset: 'backfill_carteles', inserted: backfill.count ?? 0 })
+    results.push({ dataset: 'backfill_carteles', inserted: (backfill as any).length ?? 0 })
 
     return NextResponse.json({ ok: true, range: `${startDate}→${endDate}`, results })
   } catch (e: any) {
