@@ -55,6 +55,14 @@ const DATASETS = [
     table: 'contratos',
     normalizer: normalizeC,
   },
+  {
+    name: 'ordenes_pedido',
+    endpoint: '/moduloPcont/servlet/cont/rp/CE_DA_OP_CONTROLLER_JSON.java',
+    body: (start: string, end: string) =>
+      `bgnYmdOP=${start}&endYmdOP=${end}&valor=&instNmOP=&instCdOP=&ordenpedidoOP=&instCartelNoOP=&cmd=create`,
+    table: 'ordenes_pedido',
+    normalizer: normalizeOP,
+  },
 ]
 
 function normalizeSC(row: any) {
@@ -198,6 +206,39 @@ function normalizeC(row: any) {
   }
 }
 
+function normalizeOP(row: any) {
+  const orden = row.NUMERO_ORDEN
+  const linea = row.LINEA_ORDEN_PEDIDO
+  if (!orden || !linea) return null
+
+  const parseNum = (v: any) => {
+    if (v == null || v === '') return null
+    const n = parseFloat(String(v).replace(/[^0-9.-]/g, ''))
+    return isNaN(n) ? null : n
+  }
+
+  return {
+    numero_orden:         String(orden).trim(),
+    linea_orden_pedido:   String(linea).trim(),
+    numero_orden_pedido:  row.NUMERO_ORDEN_PEDIDO ? String(row.NUMERO_ORDEN_PEDIDO) : null,
+    numero_procedimiento: row.NUMERO_PROCEDIMIENTO ? String(row.NUMERO_PROCEDIMIENTO).trim() : null,
+    nro_contrat:          row.NRO_CONTRAT ? String(row.NRO_CONTRAT) : null,
+    identificador:        row.IDENTIFICADOR ? String(row.IDENTIFICADOR) : null,
+    codigo_producto:      row.CODIGO_PRODUCTO ? String(row.CODIGO_PRODUCTO) : null,
+    secuencia:            row.SECUENCIA ? String(row.SECUENCIA) : null,
+    monto_orden_pedido:   parseNum(row.MONTO_ORDEN_PEDIDO),
+    precio_unitario:      parseNum(row.PRECIO_UNITARIO),
+    cantidad_contratada:  parseNum(row.CANTIDAD_CONTRATADA),
+    tipo_moneda:          row.TIPO_MONEDA ? String(row.TIPO_MONEDA) : null,
+    tipo_cambio_crc:      parseNum(row.TIPO_CAMBIO_CRC),
+    descuento:            parseNum(row.DESCUENTO),
+    iva:                  parseNum(row.IVA),
+    acarreos:             parseNum(row.ACARREOS),
+    otros_impuestos:      parseNum(row.OTROS_IMPUESTOS),
+    raw:                  row,
+  }
+}
+
 function extractKeywords(norm: ReturnType<typeof normalizeSC>) {
   if (!norm) return []
   const text = [norm.titulo, norm.descripcion, norm.tipo_procedimiento].filter(Boolean).join(' ').toLowerCase()
@@ -277,8 +318,8 @@ async function syncDataset(
   const isSC = dataset.table === 'licitaciones'
   const isDC = dataset.table === 'carteles'
   const isAF = dataset.table === 'adjudicaciones_firme'
-  const pkField = isSC ? 'numero_procedimiento' : isDC ? 'nro_procedimiento' : isAF ? 'numero_procedimiento' : 'identificador'
-  // contratos and ofertas both use 'identificador' as pk
+  const isOP = dataset.table === 'ordenes_pedido'
+  const pkField = isSC ? 'numero_procedimiento' : isDC ? 'nro_procedimiento' : isAF ? 'numero_procedimiento' : isOP ? 'numero_orden' : 'identificador'
 
   const normalized = rows.map(row => {
     const norm = dataset.normalizer(row)
@@ -290,8 +331,11 @@ async function syncDataset(
   skipped += rows.length - normalized.length
 
   // Deduplicate by primary key (SICOP can have dupes in same file)
+  const dedupKey = isOP
+    ? (r: any) => `${r.numero_orden}__${r.linea_orden_pedido}`
+    : (r: any) => r[pkField]
   const deduped = Array.from(
-    normalized.reduce((m, r) => m.set(r[pkField], r), new Map()).values()
+    normalized.reduce((m, r) => m.set(dedupKey(r), r), new Map()).values()
   )
   skipped += normalized.length - deduped.length
 
@@ -402,6 +446,38 @@ async function syncDataset(
             estado     = excluded.estado,
             elegible   = excluded.elegible,
             updated_at = now()
+          returning (xmax = 0) as is_insert
+        `
+      } else if (isOP) {
+        result = await sql`
+          insert into ordenes_pedido
+            (numero_orden, linea_orden_pedido, numero_orden_pedido, numero_procedimiento,
+             nro_contrat, identificador, codigo_producto, secuencia,
+             monto_orden_pedido, precio_unitario, cantidad_contratada,
+             tipo_moneda, tipo_cambio_crc, descuento, iva, acarreos, otros_impuestos)
+          select
+            r->>'numero_orden',
+            r->>'linea_orden_pedido',
+            r->>'numero_orden_pedido',
+            r->>'numero_procedimiento',
+            r->>'nro_contrat',
+            r->>'identificador',
+            r->>'codigo_producto',
+            r->>'secuencia',
+            (r->>'monto_orden_pedido')::numeric,
+            (r->>'precio_unitario')::numeric,
+            (r->>'cantidad_contratada')::numeric,
+            r->>'tipo_moneda',
+            (r->>'tipo_cambio_crc')::numeric,
+            (r->>'descuento')::numeric,
+            (r->>'iva')::numeric,
+            (r->>'acarreos')::numeric,
+            (r->>'otros_impuestos')::numeric
+          from jsonb_array_elements(${JSON.stringify(batch)}::jsonb) r
+          on conflict (numero_orden, linea_orden_pedido) do update set
+            monto_orden_pedido = excluded.monto_orden_pedido,
+            precio_unitario    = excluded.precio_unitario,
+            updated_at         = now()
           returning (xmax = 0) as is_insert
         `
       } else {
