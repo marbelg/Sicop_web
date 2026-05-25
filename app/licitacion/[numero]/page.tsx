@@ -121,7 +121,7 @@ export default function DetallePage() {
           </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+        <div className="lf-detail-grid">
 
           {/* Institución */}
           <div style={{ background: '#0F1F35', border: '1px solid #1E3A5F', borderRadius: 12, padding: '20px 24px' }}>

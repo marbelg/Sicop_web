@@ -99,7 +99,8 @@ export default function Home() {
   const [data, setData]             = useState<any>(null)
   const [loading, setLoading]       = useState(true)
 
-  const [section, setSection] = useState<Section>('dashboard')
+  const [section, setSection]       = useState<Section>('dashboard')
+  const [showFilters, setShowFilters] = useState(false)
 
   // Fetch dashboard whenever global filters change
   useEffect(() => {
@@ -152,12 +153,12 @@ export default function Home() {
     <div style={{ minHeight: '100vh', background: '#0A1628', color: '#E2E8F0', fontFamily: 'system-ui, sans-serif' }}>
 
       {/* Header */}
-      <div style={{ background: '#0F1F35', borderBottom: '1px solid #1E3A5F', padding: '12px 24px', display: 'flex', alignItems: 'center', gap: 16 }}>
-        <button onClick={() => setSection('dashboard')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', gap: 0 }}>
+      <div className="lf-header" style={{ background: '#0F1F35', borderBottom: '1px solid #1E3A5F', padding: '12px 24px' }}>
+        <button onClick={() => setSection('dashboard')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', gap: 0, flexShrink: 0 }}>
           <span style={{ fontSize: 20, fontWeight: 800, color: '#9ED23A' }}>Licita</span>
           <span style={{ fontSize: 20, fontWeight: 800, color: '#E2E8F0' }}>Fácil</span>
         </button>
-        <div style={{ flex: 1, maxWidth: 500 }}>
+        <div className="lf-header-search">
           <input
             value={q}
             onChange={e => { setQ(e.target.value); setPage(1); setSection('list') }}
@@ -169,10 +170,10 @@ export default function Home() {
       </div>
 
       {/* ── GLOBAL FILTER BAR ── */}
-      <div style={{ background: '#0F1F35', borderBottom: '1px solid #1E3A5F55', padding: '10px 24px', display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' as const }}>
+      <div className="lf-filterbar" style={{ background: '#0F1F35', borderBottom: '1px solid #1E3A5F55', padding: '10px 24px' }}>
 
         {/* Monto presets */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <div className="lf-filterbar-presets" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <span style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase' as const, letterSpacing: '0.06em', whiteSpace: 'nowrap' as const }}>Monto</span>
           <div style={{ display: 'flex', gap: 4 }}>
             {MONTO_PRESETS.map(p => {
@@ -212,10 +213,10 @@ export default function Home() {
         )}
 
         {/* Divisor */}
-        <div style={{ width: 1, height: 24, background: '#1E3A5F', flexShrink: 0 }} />
+        <div className="lf-filterbar-divider" />
 
         {/* Estado */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <div className="lf-filterbar-estado" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <span style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase' as const, letterSpacing: '0.06em', whiteSpace: 'nowrap' as const }}>Estado</span>
           <div style={{ display: 'flex', gap: 4 }}>
             {[
@@ -263,10 +264,10 @@ export default function Home() {
         )}
       </div>
 
-      <div style={{ maxWidth: 1280, margin: '0 auto', padding: '18px 16px' }}>
+      <div className="lf-page-inner" style={{ maxWidth: 1280, margin: '0 auto', padding: '18px 16px' }}>
 
         {/* Stats row */}
-        <div style={{ display: 'flex', gap: 10, marginBottom: 18, flexWrap: 'wrap' as const }}>
+        <div className="lf-stats" style={{ marginBottom: 18 }}>
           <StatCard label="Total" value={dashLoading ? '…' : (stats?.total?.toLocaleString() ?? '—')} />
           <StatCard label="Activas" value={dashLoading ? '…' : (stats?.activas?.toLocaleString() ?? '—')} color="#378ADD" />
           <StatCard label="Adjudicadas" value={dashLoading ? '…' : (stats?.adjudicadas?.toLocaleString() ?? '—')} color="#9ED23A" />
@@ -280,7 +281,7 @@ export default function Home() {
         </div>
 
         {/* Tabs */}
-        <div style={{ display: 'flex', gap: 2, marginBottom: 18, borderBottom: '1px solid #1E3A5F' }}>
+        <div className="lf-tabs" style={{ marginBottom: 18 }}>
           {([
             { id: 'dashboard',     label: 'Dashboard' },
             { id: 'list',          label: 'Licitaciones' },
@@ -305,7 +306,7 @@ export default function Home() {
               <div style={{ textAlign: 'center' as const, padding: 60, color: '#64748B' }}>Cargando...</div>
             ) : (
               <>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 20 }}>
+                <div className="lf-dash-grid">
                   {/* Top Instituciones mini */}
                   <div style={{ background: '#0F1F35', border: '1px solid #1E3A5F', borderRadius: 12, padding: '18px 20px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
@@ -370,7 +371,7 @@ export default function Home() {
                 {/* Por categoría grid */}
                 <div style={{ background: '#0F1F35', border: '1px solid #1E3A5F', borderRadius: 12, padding: '18px 20px' }}>
                   <p style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase' as const, letterSpacing: '0.08em', margin: '0 0 14px' }}>Por Categoría</p>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 8 }}>
+                  <div className="lf-cat-grid">
                     {(dash?.porTipo ?? []).map((cat: any) => {
                       const total  = dash?.stats?.total ?? 1
                       const pct    = ((cat.total / total) * 100).toFixed(1)
@@ -403,9 +404,13 @@ export default function Home() {
 
         {/* ══ LICITACIONES LIST ══ */}
         {section === 'list' && (
-          <div style={{ display: 'flex', gap: 20 }}>
+          <div className="lf-list-layout">
+            {/* Mobile filter toggle */}
+            <button className="lf-mobile-filter-toggle" onClick={() => setShowFilters(f => !f)}>
+              {showFilters ? '✕ Cerrar filtros' : '⚙ Mostrar filtros'}
+            </button>
             {/* Sidebar */}
-            <div style={{ width: 210, flexShrink: 0 }}>
+            <div className={`lf-sidebar${showFilters ? ' lf-sidebar-open' : ''}`} style={{ flexShrink: 0 }}>
 
               {/* Active entity filter */}
               {(inst || proveedor) && (
