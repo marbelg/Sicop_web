@@ -5,6 +5,7 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const q      = searchParams.get('q') ?? ''
   const tipo   = searchParams.get('tipo') ?? ''
+  const estado = searchParams.get('estado') ?? ''
   const page   = Math.max(1, parseInt(searchParams.get('page') ?? '1'))
   const limit  = 20
   const offset = (page - 1) * limit
@@ -30,15 +31,28 @@ export async function GET(req: NextRequest) {
     where
       (${q} = '' or l.titulo ilike ${'%' + q + '%'} or l.descripcion ilike ${'%' + q + '%'})
       and (${tipo} = '' or l.tipo_procedimiento = ${tipo})
+      and (${estado} = '' or
+        case
+          when af.numero_procedimiento is not null and af.desierto then 'Desierta'
+          when af.numero_procedimiento is not null then 'Adjudicada'
+          else 'Activa'
+        end = ${estado})
     order by l.fecha_publicacion desc nulls last
     limit ${limit} offset ${offset}
   `
 
   const countRows = await sql`
     select count(*)::int as n from licitaciones l
+    left join adjudicaciones_firme af on af.numero_procedimiento = l.numero_procedimiento
     where
       (${q} = '' or l.titulo ilike ${'%' + q + '%'} or l.descripcion ilike ${'%' + q + '%'})
       and (${tipo} = '' or l.tipo_procedimiento = ${tipo})
+      and (${estado} = '' or
+        case
+          when af.numero_procedimiento is not null and af.desierto then 'Desierta'
+          when af.numero_procedimiento is not null then 'Adjudicada'
+          else 'Activa'
+        end = ${estado})
   `
   const total = (countRows[0] as any).n
 
