@@ -99,9 +99,16 @@ export default function DetallePage() {
                 )}
                 <Badge label={data.estado} color={estadoColor[data.estado] ?? '#64748B'} />
               </div>
-              <p style={{ fontSize: 11, color: '#475569', margin: '0 0 8px', fontFamily: 'monospace' }}>
-                {data.numero_procedimiento}
-              </p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '0 0 8px', flexWrap: 'wrap' as const }}>
+                <p style={{ fontSize: 11, color: '#475569', margin: 0, fontFamily: 'monospace' }}>
+                  {data.numero_procedimiento}
+                </p>
+                {data.nro_sicop && (
+                  <p style={{ fontSize: 11, color: '#475569', margin: 0, fontFamily: 'monospace' }}>
+                    · SICOP: <span style={{ color: '#9ED23A' }}>{data.nro_sicop}</span>
+                  </p>
+                )}
+              </div>
               <p style={{ fontSize: 17, fontWeight: 700, color: '#E2E8F0', lineHeight: 1.5, margin: 0 }}>
                 {data.titulo ?? '—'}
               </p>

@@ -12,6 +12,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ num
       l.tipo_procedimiento, l.monto_estimado, l.currency,
       l.fecha_publicacion, l.keywords,
       coalesce(c.fecha_cierre, l.fecha_cierre)   as fecha_cierre,
+      c.nro_sicop,
       c.nombre_unidad_compra                      as unidad_compra,
       c.fecha_apertura,
       i.nombre_institucion,
