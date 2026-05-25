@@ -39,6 +39,14 @@ const DATASETS = [
     table: 'ofertas',
     normalizer: normalizeO,
   },
+  {
+    name: 'adjudicaciones_firme',
+    endpoint: '/moduloPcont/servlet/cont/rp/CE_DA_AF_CONTROLLER_JSON.java',
+    body: (start: string, end: string) =>
+      `bgnYmdAF=${start}&endYmdAF=${end}&instNmAF=&instCdAF=&supplierCdAF=&instCartelNoAF=&proceTypeAF=&cmd=create`,
+    table: 'adjudicaciones_firme',
+    normalizer: normalizeAF,
+  },
 ]
 
 function normalizeSC(row: any) {
@@ -131,6 +139,28 @@ function normalizeO(row: any) {
   }
 }
 
+function normalizeAF(row: any) {
+  const nro = row.NUMERO_PROCEDIMIENTO
+  if (!nro) return null
+
+  const parseTs = (v: any) => {
+    if (!v) return null
+    const s = String(v).trim()
+    return /^\d{4}-\d{2}-\d{2}/.test(s) ? s : null
+  }
+
+  return {
+    numero_procedimiento:  String(nro).trim(),
+    nro_sicop:             row.NRO_SICOP ? String(row.NRO_SICOP) : null,
+    desierto:              row.DESIERTO === 'S' || row.DESIERTO === 'Si' || row.DESIERTO === 'Y',
+    permite_recursos:      row.PERMITE_RECURSOS === 'Si' || row.PERMITE_RECURSOS === 'S',
+    fecha_adj_firme:       parseTs(row.FECHA_ADJ_FIRME),
+    fecha_comunicacion:    parseTs(row.FECHA_COMUNICACION),
+    fecha_maxima_recursos: parseTs(row.FECHA_MAXIMA_RECURSOS),
+    raw:                   row,
+  }
+}
+
 function extractKeywords(norm: ReturnType<typeof normalizeSC>) {
   if (!norm) return []
   const text = [norm.titulo, norm.descripcion, norm.tipo_procedimiento].filter(Boolean).join(' ').toLowerCase()
@@ -209,7 +239,8 @@ async function syncDataset(
   const BATCH = 100
   const isSC = dataset.table === 'licitaciones'
   const isDC = dataset.table === 'carteles'
-  const pkField = isSC ? 'numero_procedimiento' : isDC ? 'nro_procedimiento' : 'identificador'
+  const isAF = dataset.table === 'adjudicaciones_firme'
+  const pkField = isSC ? 'numero_procedimiento' : isDC ? 'nro_procedimiento' : isAF ? 'numero_procedimiento' : 'identificador'
 
   const normalized = rows.map(row => {
     const norm = dataset.normalizer(row)
@@ -287,6 +318,29 @@ async function syncDataset(
             modalidad              = excluded.modalidad,
             fecha_apertura         = excluded.fecha_apertura,
             nro_sicop              = excluded.nro_sicop,
+            updated_at             = now()
+          returning (xmax = 0) as is_insert
+        `
+      } else if (isAF) {
+        result = await sql`
+          insert into adjudicaciones_firme
+            (numero_procedimiento, nro_sicop, desierto, permite_recursos,
+             fecha_adj_firme, fecha_comunicacion, fecha_maxima_recursos)
+          select
+            r->>'numero_procedimiento',
+            r->>'nro_sicop',
+            (r->>'desierto')::boolean,
+            (r->>'permite_recursos')::boolean,
+            (r->>'fecha_adj_firme')::timestamptz,
+            (r->>'fecha_comunicacion')::timestamptz,
+            (r->>'fecha_maxima_recursos')::timestamptz
+          from jsonb_array_elements(${JSON.stringify(batch)}::jsonb) r
+          on conflict (numero_procedimiento) do update set
+            desierto               = excluded.desierto,
+            permite_recursos       = excluded.permite_recursos,
+            fecha_adj_firme        = excluded.fecha_adj_firme,
+            fecha_comunicacion     = excluded.fecha_comunicacion,
+            fecha_maxima_recursos  = excluded.fecha_maxima_recursos,
             updated_at             = now()
           returning (xmax = 0) as is_insert
         `
