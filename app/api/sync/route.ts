@@ -63,6 +63,14 @@ const DATASETS = [
     table: 'ordenes_pedido',
     normalizer: normalizeOP,
   },
+  {
+    name: 'instituciones',
+    endpoint: '/moduloPcont/servlet/cont/rp/CE_DA_IC_CONTROLLER_JSON.java',
+    body: (_start: string, _end: string) =>
+      `instNmIC=&instCdIC=&provincias=&cantones=&distritos=&cmd=create`,
+    table: 'instituciones',
+    normalizer: normalizeIC,
+  },
 ]
 
 function normalizeSC(row: any) {
@@ -239,6 +247,22 @@ function normalizeOP(row: any) {
   }
 }
 
+function normalizeIC(row: any) {
+  const cedula = row.CEDULA
+  if (!cedula) return null
+  return {
+    cedula:             String(cedula).trim(),
+    nombre_institucion: row.NOMBRE_INSTITUCION ? String(row.NOMBRE_INSTITUCION) : null,
+    representante:      row.REPRESENTANTE ? String(row.REPRESENTANTE) : null,
+    direccion:          row.DIRECCION ? String(row.DIRECCION) : null,
+    canton:             row.CANTON ? String(row.CANTON) : null,
+    distrito:           row.DISTRITO ? String(row.DISTRITO) : null,
+    codigo_postal:      row.CODIGO_POSTAL ? String(row.CODIGO_POSTAL) : null,
+    telefono:           row.TELEFONO ? String(row.TELEFONO) : null,
+    raw:                row,
+  }
+}
+
 function extractKeywords(norm: ReturnType<typeof normalizeSC>) {
   if (!norm) return []
   const text = [norm.titulo, norm.descripcion, norm.tipo_procedimiento].filter(Boolean).join(' ').toLowerCase()
@@ -319,7 +343,8 @@ async function syncDataset(
   const isDC = dataset.table === 'carteles'
   const isAF = dataset.table === 'adjudicaciones_firme'
   const isOP = dataset.table === 'ordenes_pedido'
-  const pkField = isSC ? 'numero_procedimiento' : isDC ? 'nro_procedimiento' : isAF ? 'numero_procedimiento' : isOP ? 'numero_orden' : 'identificador'
+  const isIC = dataset.table === 'instituciones'
+  const pkField = isSC ? 'numero_procedimiento' : isDC ? 'nro_procedimiento' : isAF ? 'numero_procedimiento' : isOP ? 'numero_orden' : isIC ? 'cedula' : 'identificador'
 
   const normalized = rows.map(row => {
     const norm = dataset.normalizer(row)
@@ -477,6 +502,26 @@ async function syncDataset(
           on conflict (numero_orden, linea_orden_pedido) do update set
             monto_orden_pedido = excluded.monto_orden_pedido,
             precio_unitario    = excluded.precio_unitario,
+            updated_at         = now()
+          returning (xmax = 0) as is_insert
+        `
+      } else if (isIC) {
+        result = await sql`
+          insert into instituciones
+            (cedula, nombre_institucion, representante, direccion, canton, distrito, codigo_postal, telefono)
+          select
+            r->>'cedula',
+            r->>'nombre_institucion',
+            r->>'representante',
+            r->>'direccion',
+            r->>'canton',
+            r->>'distrito',
+            r->>'codigo_postal',
+            r->>'telefono'
+          from jsonb_array_elements(${JSON.stringify(batch)}::jsonb) r
+          on conflict (cedula) do update set
+            nombre_institucion = excluded.nombre_institucion,
+            representante      = excluded.representante,
             updated_at         = now()
           returning (xmax = 0) as is_insert
         `

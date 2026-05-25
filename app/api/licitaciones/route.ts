@@ -17,6 +17,7 @@ export async function GET(req: NextRequest) {
       l.monto_estimado, l.currency, l.fecha_publicacion, l.score,
       coalesce(c.fecha_cierre, l.fecha_cierre) as fecha_cierre,
       c.nombre_unidad_compra as unidad_compra,
+      i.nombre_institucion,
       case
         when af.numero_procedimiento is not null and af.desierto then 'Desierta'
         when af.numero_procedimiento is not null then 'Adjudicada'
@@ -25,6 +26,7 @@ export async function GET(req: NextRequest) {
     from licitaciones l
     left join carteles c on c.nro_procedimiento = l.numero_procedimiento
     left join adjudicaciones_firme af on af.numero_procedimiento = l.numero_procedimiento
+    left join instituciones i on i.cedula = l.institucion
     where
       (${q} = '' or l.titulo ilike ${'%' + q + '%'} or l.descripcion ilike ${'%' + q + '%'})
       and (${tipo} = '' or l.tipo_procedimiento = ${tipo})
