@@ -95,7 +95,7 @@ export default function DetallePage() {
             <div style={{ flex: 1 }}>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' as const, marginBottom: 12 }}>
                 {data.tipo_procedimiento && (
-                  <Badge label={TIPO_LABELS[data.tipo_procedimiento] ?? data.tipo_procedimiento} color="#378ADD" />
+                  <Badge label={`[${data.tipo_procedimiento}] ${TIPO_LABELS[data.tipo_procedimiento] ?? data.tipo_procedimiento}`} color="#378ADD" />
                 )}
                 <Badge label={data.estado} color={estadoColor[data.estado] ?? '#64748B'} />
               </div>

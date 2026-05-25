@@ -121,16 +121,20 @@ export default function Home() {
           {/* Tipo filter */}
           <p style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase' as const, letterSpacing: '0.08em', marginBottom: 8, marginTop: 0 }}>Tipo</p>
           <div style={{ display: 'flex', flexDirection: 'column' as const, gap: 3 }}>
-            {[{ v: '', l: 'Todos' }, ...(data?.tipos ?? []).map((t: any) => ({
+            {[{ v: '', l: 'Todos', n: null }, ...(data?.tipos ?? []).map((t: any) => ({
               v: t.tipo_procedimiento,
-              l: `${TIPO_LABELS[t.tipo_procedimiento] ?? t.tipo_procedimiento} (${t.n})`,
+              l: t.tipo_procedimiento,
+              n: t.n,
             }))].map(opt => (
               <button key={opt.v} onClick={() => { setTipo(opt.v); setPage(1) }} style={{
                 textAlign: 'left' as const, padding: '6px 10px', borderRadius: 6, border: 'none',
                 cursor: 'pointer', background: tipo === opt.v ? '#1E3A5F' : 'transparent',
                 color: tipo === opt.v ? '#9ED23A' : '#94A3B8', fontSize: 12,
               }}>
-                {opt.l}
+                {opt.v
+                  ? `[${opt.v}] ${TIPO_LABELS[opt.v] ?? opt.v} (${opt.n})`
+                  : 'Todos'
+                }
               </button>
             ))}
           </div>
@@ -163,7 +167,10 @@ export default function Home() {
                       <div style={{ flex: 1 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' as const, marginBottom: 8 }}>
                           {row.tipo_procedimiento && (
-                            <Badge label={TIPO_LABELS[row.tipo_procedimiento] ?? row.tipo_procedimiento} color={TIPO_COLORS[row.tipo_procedimiento] ?? '#64748B'} />
+                            <Badge
+                              label={`[${row.tipo_procedimiento}] ${TIPO_LABELS[row.tipo_procedimiento] ?? row.tipo_procedimiento}`}
+                              color={TIPO_COLORS[row.tipo_procedimiento] ?? '#64748B'}
+                            />
                           )}
                           <Badge label={row.estado ?? 'Activa'} color={ESTADO_COLORS[row.estado] ?? '#378ADD'} />
                           <span style={{ fontSize: 11, color: '#334155', fontFamily: 'monospace' }}>{row.numero_procedimiento}</span>
