@@ -112,24 +112,32 @@ export default function ImportPage() {
             <table style={{ width: '100%', borderCollapse: 'collapse' as const, fontSize: 13 }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid #1E3A5F' }}>
-                  {['Dataset', 'Total SICOP', 'Nuevos', 'Actualizados', 'Omitidos', 'Estado'].map(h => (
-                    <th key={h} style={{ padding: '8px 12px', textAlign: 'left' as const, color: '#64748B', fontWeight: 600 }}>{h}</th>
+                  {['Dataset', 'Total SICOP', 'Nuevos', 'Actualizados', 'Sin campo clave', 'Duplicados SICOP', 'Errores batch', 'Estado'].map(h => (
+                    <th key={h} style={{ padding: '8px 10px', textAlign: 'left' as const, color: '#64748B', fontWeight: 600, fontSize: 11 }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {results.map((r: any) => (
                   <tr key={r.dataset} style={{ borderBottom: '1px solid #0A1628' }}>
-                    <td style={{ padding: '10px 12px', fontWeight: 600 }}>{r.dataset}</td>
-                    <td style={{ padding: '10px 12px', color: '#94A3B8' }}>{r.total?.toLocaleString() ?? '—'}</td>
-                    <td style={{ padding: '10px 12px', color: '#9ED23A' }}>{r.inserted?.toLocaleString() ?? '—'}</td>
-                    <td style={{ padding: '10px 12px', color: '#378ADD' }}>{r.updated?.toLocaleString() ?? '—'}</td>
-                    <td style={{ padding: '10px 12px', color: '#64748B' }}>{r.skipped?.toLocaleString() ?? '—'}</td>
-                    <td style={{ padding: '10px 12px' }}>
+                    <td style={{ padding: '10px 10px', fontWeight: 600 }}>{r.dataset}</td>
+                    <td style={{ padding: '10px 10px', color: '#94A3B8' }}>{r.total?.toLocaleString() ?? '—'}</td>
+                    <td style={{ padding: '10px 10px', color: '#9ED23A' }}>{r.inserted?.toLocaleString() ?? '—'}</td>
+                    <td style={{ padding: '10px 10px', color: '#378ADD' }}>{r.updated?.toLocaleString() ?? '—'}</td>
+                    <td style={{ padding: '10px 10px', color: r.skip_detalle?.sin_campo_clave > 0 ? '#F87171' : '#64748B' }}>
+                      {r.skip_detalle?.sin_campo_clave?.toLocaleString() ?? '—'}
+                    </td>
+                    <td style={{ padding: '10px 10px', color: '#64748B' }}>
+                      {r.skip_detalle?.duplicados_sicop?.toLocaleString() ?? '—'}
+                    </td>
+                    <td style={{ padding: '10px 10px', color: r.skip_detalle?.errores_batch > 0 ? '#F87171' : '#64748B' }}>
+                      {r.skip_detalle?.errores_batch?.toLocaleString() ?? '—'}
+                    </td>
+                    <td style={{ padding: '10px 10px' }}>
                       {r.error
-                        ? <span style={{ color: '#F87171', fontSize: 11 }}>❌ {r.error.slice(0, 50)}</span>
+                        ? <span style={{ color: '#F87171', fontSize: 11 }}>❌ {r.error.slice(0, 40)}</span>
                         : r.firstError
-                          ? <span style={{ color: '#F59E0B', fontSize: 11 }}>⚠ {r.firstError.slice(0, 50)}</span>
+                          ? <span style={{ color: '#F59E0B', fontSize: 11 }}>⚠ {r.firstError.slice(0, 40)}</span>
                           : <span style={{ color: '#9ED23A', fontSize: 11 }}>✓ OK</span>
                       }
                     </td>

@@ -360,7 +360,8 @@ async function syncDataset(
     throw new Error(`Cannot parse JSON from ${dataset.name}: ${jsonText.slice(0, 120)}`)
   }
 
-  let inserted = 0, updated = 0, skipped = 0, batchErrors: string[] = []
+  let inserted = 0, updated = 0, batchErrors: string[] = []
+  let skipNoKey = 0, skipDupes = 0, skipBatchError = 0
   const BATCH = 100
   const isSC = dataset.table === 'licitaciones'
   const isDC = dataset.table === 'carteles'
@@ -377,7 +378,7 @@ async function syncDataset(
     return isSC ? { ...rest, keywords: extractKeywords(norm as any) } : rest
   }).filter(Boolean) as any[]
 
-  skipped += rows.length - normalized.length
+  skipNoKey = rows.length - normalized.length
 
   // Deduplicate by primary key (SICOP can have dupes in same file)
   const dedupKey = isOP
@@ -386,7 +387,7 @@ async function syncDataset(
   const deduped = Array.from(
     normalized.reduce((m, r) => m.set(dedupKey(r), r), new Map()).values()
   )
-  skipped += normalized.length - deduped.length
+  skipDupes = normalized.length - deduped.length
 
   for (let i = 0; i < deduped.length; i += BATCH) {
     const batch = deduped.slice(i, i + BATCH)
@@ -605,16 +606,30 @@ async function syncDataset(
       }
     } catch (e: any) {
       batchErrors.push(e.message?.slice(0, 100))
-      skipped += batch.length
+      skipBatchError += batch.length
     }
   }
+
+  const skipped = skipNoKey + skipDupes + skipBatchError
 
   await sql`
     insert into import_logs (dataset, filename, rows_inserted, rows_updated, rows_skipped)
     values (${dataset.name}, ${'auto-sync'}, ${inserted}, ${updated}, ${skipped})
   `
 
-  return { dataset: dataset.name, total: rows.length, inserted, updated, skipped, firstError: batchErrors[0] ?? null }
+  return {
+    dataset: dataset.name,
+    total: rows.length,
+    inserted,
+    updated,
+    skipped,
+    skip_detalle: {
+      sin_campo_clave: skipNoKey,
+      duplicados_sicop: skipDupes,
+      errores_batch: skipBatchError,
+    },
+    firstError: batchErrors[0] ?? null,
+  }
 }
 
 export async function GET(req: NextRequest) {
