@@ -71,6 +71,13 @@ const DATASETS = [
     table: 'instituciones',
     normalizer: normalizeIC,
   },
+  {
+    name: 'proveedores',
+    endpoint: '/moduloPcont/servlet/cont/rp/CE_DA_P_CONTROLLER_JSON.java',
+    body: (_start: string, _end: string) => `tamano=&cmd=create`,
+    table: 'proveedores',
+    normalizer: normalizeP,
+  },
 ]
 
 function normalizeSC(row: any) {
@@ -263,6 +270,22 @@ function normalizeIC(row: any) {
   }
 }
 
+function normalizeP(row: any) {
+  const cedula = row.CEDULA_PROVEEDOR
+  if (!cedula) return null
+  return {
+    cedula_proveedor: String(cedula).trim(),
+    nombre_proveedor: row.NOMBRE_PROVEEDOR ? String(row.NOMBRE_PROVEEDOR) : null,
+    tipo_proveedor:   row.TIPO_PROVEEDOR ? String(row.TIPO_PROVEEDOR) : null,
+    tamaño_proveedor: row['TAMAÑO_PROVEEDOR'] ? String(row['TAMAÑO_PROVEEDOR']) : null,
+    provincia:        row.PROVINCIA ? String(row.PROVINCIA) : null,
+    canton:           row.CANTON ? String(row.CANTON) : null,
+    distrito:         row.DISTRITO ? String(row.DISTRITO) : null,
+    codigo_postal:    row.CODIGO_POSTAL ? String(row.CODIGO_POSTAL) : null,
+    raw:              row,
+  }
+}
+
 function extractKeywords(norm: ReturnType<typeof normalizeSC>) {
   if (!norm) return []
   const text = [norm.titulo, norm.descripcion, norm.tipo_procedimiento].filter(Boolean).join(' ').toLowerCase()
@@ -344,7 +367,8 @@ async function syncDataset(
   const isAF = dataset.table === 'adjudicaciones_firme'
   const isOP = dataset.table === 'ordenes_pedido'
   const isIC = dataset.table === 'instituciones'
-  const pkField = isSC ? 'numero_procedimiento' : isDC ? 'nro_procedimiento' : isAF ? 'numero_procedimiento' : isOP ? 'numero_orden' : isIC ? 'cedula' : 'identificador'
+  const isP  = dataset.table === 'proveedores'
+  const pkField = isSC ? 'numero_procedimiento' : isDC ? 'nro_procedimiento' : isAF ? 'numero_procedimiento' : isOP ? 'numero_orden' : isIC ? 'cedula' : isP ? 'cedula_proveedor' : 'identificador'
 
   const normalized = rows.map(row => {
     const norm = dataset.normalizer(row)
@@ -523,6 +547,27 @@ async function syncDataset(
             nombre_institucion = excluded.nombre_institucion,
             representante      = excluded.representante,
             updated_at         = now()
+          returning (xmax = 0) as is_insert
+        `
+      } else if (isP) {
+        result = await sql`
+          insert into proveedores
+            (cedula_proveedor, nombre_proveedor, tipo_proveedor, tamaño_proveedor,
+             provincia, canton, distrito, codigo_postal)
+          select
+            r->>'cedula_proveedor',
+            r->>'nombre_proveedor',
+            r->>'tipo_proveedor',
+            r->>'tamaño_proveedor',
+            r->>'provincia',
+            r->>'canton',
+            r->>'distrito',
+            r->>'codigo_postal'
+          from jsonb_array_elements(${JSON.stringify(batch)}::jsonb) r
+          on conflict (cedula_proveedor) do update set
+            nombre_proveedor = excluded.nombre_proveedor,
+            tipo_proveedor   = excluded.tipo_proveedor,
+            updated_at       = now()
           returning (xmax = 0) as is_insert
         `
       } else {
