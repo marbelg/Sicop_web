@@ -47,6 +47,14 @@ const DATASETS = [
     table: 'adjudicaciones_firme',
     normalizer: normalizeAF,
   },
+  {
+    name: 'contratos',
+    endpoint: '/moduloPcont/servlet/cont/rp/CE_DA_C_CONTROLLER_JSON.java',
+    body: (start: string, end: string) =>
+      `bgnYmdC=${start}&endYmdC=${end}&instNmC=&instCdC=&supplierC=&instCartelNoC=&proceTypeC=&cmd=create`,
+    table: 'contratos',
+    normalizer: normalizeC,
+  },
 ]
 
 function normalizeSC(row: any) {
@@ -161,6 +169,35 @@ function normalizeAF(row: any) {
   }
 }
 
+function normalizeC(row: any) {
+  const id = row.IDENTIFICADOR
+  if (!id) return null
+
+  const parseTs = (v: any) => {
+    if (!v) return null
+    const s = String(v).trim()
+    return /^\d{4}-\d{2}-\d{2}/.test(s) ? s : null
+  }
+
+  return {
+    identificador:        String(id).trim(),
+    nro_contrato:         row.NRO_CONTRATO ? String(row.NRO_CONTRATO) : null,
+    numero_procedimiento: row.NUMERO_PROCEDIMIENTO ? String(row.NUMERO_PROCEDIMIENTO).trim() : null,
+    cedula_proveedor:     row.CEDULA_PROVEEDOR ? String(row.CEDULA_PROVEEDOR) : null,
+    nro_sicop:            row.NRO_SICOP ? String(row.NRO_SICOP) : null,
+    tipo_modificacion:    row.TIPO_MODIFICACION ? String(row.TIPO_MODIFICACION) : null,
+    tipo_disminucion:     row.TIPO_DISMINUCION && row.TIPO_DISMINUCION !== '' ? String(row.TIPO_DISMINUCION) : null,
+    contrato_modificado:  row.CONTRATO_MODIFICADO ? String(row.CONTRATO_MODIFICADO) : null,
+    tipo_autorizacion:    row.TIPO_AUTORIZACION ? String(row.TIPO_AUTORIZACION) : null,
+    vigencia_contrato:    row.VIGENCIA_CONTRATO ? String(row.VIGENCIA_CONTRATO) : null,
+    unidad_vigencia:      row.UNIDAD_VIGENCIA ? String(row.UNIDAD_VIGENCIA) : null,
+    fecha_notificacion:   parseTs(row.FECHA_NOTIFICACION),
+    ident_contrato_padre: row.IDENT_CONTRATO_PADRE && row.IDENT_CONTRATO_PADRE !== '' ? String(row.IDENT_CONTRATO_PADRE) : null,
+    secuencia:            row.SECUENCIA ? String(row.SECUENCIA) : null,
+    raw:                  row,
+  }
+}
+
 function extractKeywords(norm: ReturnType<typeof normalizeSC>) {
   if (!norm) return []
   const text = [norm.titulo, norm.descripcion, norm.tipo_procedimiento].filter(Boolean).join(' ').toLowerCase()
@@ -241,6 +278,7 @@ async function syncDataset(
   const isDC = dataset.table === 'carteles'
   const isAF = dataset.table === 'adjudicaciones_firme'
   const pkField = isSC ? 'numero_procedimiento' : isDC ? 'nro_procedimiento' : isAF ? 'numero_procedimiento' : 'identificador'
+  // contratos and ofertas both use 'identificador' as pk
 
   const normalized = rows.map(row => {
     const norm = dataset.normalizer(row)
@@ -344,7 +382,7 @@ async function syncDataset(
             updated_at             = now()
           returning (xmax = 0) as is_insert
         `
-      } else {
+      } else if (dataset.table === 'ofertas') {
         result = await sql`
           insert into ofertas
             (identificador, numero_procedimiento, cedula_proveedor, fecha_presenta_oferta,
@@ -361,9 +399,38 @@ async function syncDataset(
             r->>'nro_sicop'
           from jsonb_array_elements(${JSON.stringify(batch)}::jsonb) r
           on conflict (identificador) do update set
-            estado    = excluded.estado,
-            elegible  = excluded.elegible,
+            estado     = excluded.estado,
+            elegible   = excluded.elegible,
             updated_at = now()
+          returning (xmax = 0) as is_insert
+        `
+      } else {
+        result = await sql`
+          insert into contratos
+            (identificador, nro_contrato, numero_procedimiento, cedula_proveedor, nro_sicop,
+             tipo_modificacion, tipo_disminucion, contrato_modificado, tipo_autorizacion,
+             vigencia_contrato, unidad_vigencia, fecha_notificacion, ident_contrato_padre, secuencia)
+          select
+            r->>'identificador',
+            r->>'nro_contrato',
+            r->>'numero_procedimiento',
+            r->>'cedula_proveedor',
+            r->>'nro_sicop',
+            r->>'tipo_modificacion',
+            r->>'tipo_disminucion',
+            r->>'contrato_modificado',
+            r->>'tipo_autorizacion',
+            r->>'vigencia_contrato',
+            r->>'unidad_vigencia',
+            (r->>'fecha_notificacion')::timestamptz,
+            r->>'ident_contrato_padre',
+            r->>'secuencia'
+          from jsonb_array_elements(${JSON.stringify(batch)}::jsonb) r
+          on conflict (identificador) do update set
+            tipo_modificacion  = excluded.tipo_modificacion,
+            contrato_modificado = excluded.contrato_modificado,
+            fecha_notificacion = excluded.fecha_notificacion,
+            updated_at         = now()
           returning (xmax = 0) as is_insert
         `
       }
