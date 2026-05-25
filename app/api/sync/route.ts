@@ -627,18 +627,28 @@ export async function GET(req: NextRequest) {
   try {
     const sql = getDb()
     const today = new Date()
-    const yesterday = new Date(today)
-    yesterday.setDate(yesterday.getDate() - 1)
 
-    // On first run use last 90 days to catch up
-    const full = req.nextUrl.searchParams.get('full') === 'true'
-    const countRows = await sql`select count(*)::int as n from licitaciones`
-    const total = (countRows?.[0] as any)?.n ?? 0
-    const daysBack = new Date(today); daysBack.setDate(daysBack.getDate() - 15)
-    const startDate = (total === 0 || full)
-      ? fmtSicop(daysBack)
-      : fmtSicop(yesterday)
-    const endDate = fmtSicop(today)
+    // Manual range: ?from=DDMMYYYY&to=DDMMYYYY (for loading historical months)
+    const fromParam = req.nextUrl.searchParams.get('from')
+    const toParam   = req.nextUrl.searchParams.get('to')
+    const full      = req.nextUrl.searchParams.get('full') === 'true'
+
+    let startDate: string
+    let endDate: string
+
+    if (fromParam && toParam) {
+      startDate = fromParam
+      endDate   = toParam
+    } else if (full) {
+      const d = new Date(today); d.setDate(d.getDate() - 30)
+      startDate = fmtSicop(d)
+      endDate   = fmtSicop(today)
+    } else {
+      // Daily cron: yesterday only
+      const yesterday = new Date(today); yesterday.setDate(yesterday.getDate() - 1)
+      startDate = fmtSicop(yesterday)
+      endDate   = fmtSicop(today)
+    }
 
     const sessionId = await fetchSession()
     const results = []
