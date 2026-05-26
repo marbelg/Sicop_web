@@ -131,16 +131,28 @@ export default function Home() {
     fetch('/api/auth/me').then(r => r.ok ? r.json() : null).then(d => { if (d?.user) setUser(d.user) }).catch(() => {})
   }, [])
 
-  // Load radar data when section = radar and user is logged in
+  // Load radar keywords from localStorage for anonymous users on mount
   useEffect(() => {
-    if (section !== 'radar' || !user) return
+    if (!user) {
+      try {
+        const saved = JSON.parse(localStorage.getItem('radar_kw') ?? '[]')
+        if (Array.isArray(saved)) setRadarKeywords(saved)
+      } catch {}
+    }
+  }, [user])
+
+  // Search whenever radar keywords change (for both logged and anonymous)
+  useEffect(() => {
+    if (section !== 'radar' || radarKeywords.length === 0) { setRadarHits([]); return }
     setRadarLoading(true)
-    fetch('/api/radar').then(r => r.json()).then(d => {
-      setRadarKeywords(d.keywords ?? [])
+    const url = user
+      ? '/api/radar'
+      : `/api/radar?kw=${encodeURIComponent(radarKeywords.join(','))}`
+    fetch(url).then(r => r.json()).then(d => {
       setRadarHits(d.hits ?? [])
       setRadarLoading(false)
     })
-  }, [section, user])
+  }, [section, radarKeywords, user])
 
   async function handleAuth(e: React.FormEvent) {
     e.preventDefault()
@@ -167,18 +179,30 @@ export default function Home() {
   async function addKeyword() {
     const kw = radarInput.trim().toLowerCase()
     if (!kw || radarKeywords.includes(kw)) return
-    await fetch('/api/radar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ keyword: kw }) })
     setRadarInput('')
-    setRadarLoading(true)
-    const d = await fetch('/api/radar').then(r => r.json())
-    setRadarKeywords(d.keywords ?? []); setRadarHits(d.hits ?? []); setRadarLoading(false)
+    if (user) {
+      await fetch('/api/radar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ keyword: kw }) })
+    } else {
+      const updated = [...radarKeywords, kw]
+      localStorage.setItem('radar_kw', JSON.stringify(updated))
+      setRadarKeywords(updated)
+    }
+    if (user) {
+      const d = await fetch('/api/radar').then(r => r.json())
+      setRadarKeywords(d.keywords ?? [])
+    }
   }
 
   async function removeKeyword(kw: string) {
-    await fetch('/api/radar', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ keyword: kw }) })
-    setRadarLoading(true)
-    const d = await fetch('/api/radar').then(r => r.json())
-    setRadarKeywords(d.keywords ?? []); setRadarHits(d.hits ?? []); setRadarLoading(false)
+    if (user) {
+      await fetch('/api/radar', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ keyword: kw }) })
+      const d = await fetch('/api/radar').then(r => r.json())
+      setRadarKeywords(d.keywords ?? [])
+    } else {
+      const updated = radarKeywords.filter(k => k !== kw)
+      localStorage.setItem('radar_kw', JSON.stringify(updated))
+      setRadarKeywords(updated)
+    }
   }
 
   // Fetch dashboard whenever global filters change
@@ -750,59 +774,62 @@ export default function Home() {
         {/* ══ RADAR ══ */}
         {section === 'radar' && (
           <div>
-            {!user ? (
-              <div style={{ textAlign: 'center' as const, padding: '60px 20px' }}>
-                <p style={{ fontSize: 32, marginBottom: 12 }}>📡</p>
-                <p style={{ fontSize: 18, fontWeight: 700, color: '#E2E8F0', marginBottom: 8 }}>RadarLicitario</p>
-                <p style={{ fontSize: 14, color: '#64748B', marginBottom: 24, maxWidth: 380, margin: '0 auto 24px' }}>
-                  Guardá tus palabras clave y recibí resultados personalizados cada vez que entrés.
+            {/* Light invite banner — only for anonymous users */}
+            {!user && (
+              <div style={{ background: '#9ED23A11', border: '1px solid #9ED23A33', borderRadius: 10, padding: '12px 18px', marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' as const }}>
+                <p style={{ fontSize: 13, color: '#9ED23A', margin: 0 }}>
+                  💡 <strong>Tip:</strong> Creá una cuenta gratis para que tus palabras clave se guarden entre sesiones.
                 </p>
-                <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
+                <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
                   <button onClick={() => { setShowAuth(true); setAuthMode('registro') }}
-                    style={{ background: '#9ED23A', border: 'none', borderRadius: 8, padding: '10px 24px', fontSize: 14, fontWeight: 700, color: '#0A1628', cursor: 'pointer' }}>
-                    Crear cuenta gratis
+                    style={{ background: '#9ED23A', border: 'none', borderRadius: 6, padding: '5px 14px', fontSize: 12, fontWeight: 700, color: '#0A1628', cursor: 'pointer' }}>
+                    Registrarme
                   </button>
                   <button onClick={() => { setShowAuth(true); setAuthMode('login') }}
-                    style={{ background: 'transparent', border: '1px solid #1E3A5F', borderRadius: 8, padding: '10px 24px', fontSize: 14, color: '#94A3B8', cursor: 'pointer' }}>
+                    style={{ background: 'transparent', border: '1px solid #9ED23A44', borderRadius: 6, padding: '5px 14px', fontSize: 12, color: '#9ED23A', cursor: 'pointer' }}>
                     Ya tengo cuenta
                   </button>
                 </div>
               </div>
-            ) : (
-              <div>
-                {/* Keyword input */}
-                <div style={{ background: '#0F1F35', border: '1px solid #1E3A5F', borderRadius: 12, padding: '20px 24px', marginBottom: 20 }}>
-                  <p style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase' as const, letterSpacing: '0.08em', margin: '0 0 14px' }}>
-                    Mis palabras clave
-                  </p>
-                  <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' as const }}>
-                    {radarKeywords.map(kw => (
-                      <span key={kw} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#9ED23A22', color: '#9ED23A', border: '1px solid #9ED23A44', borderRadius: 20, padding: '4px 12px', fontSize: 12, fontWeight: 600 }}>
-                        {kw}
-                        <button onClick={() => removeKeyword(kw)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ED23A', fontSize: 14, padding: 0, lineHeight: 1 }}>×</button>
-                      </span>
-                    ))}
-                    {radarKeywords.length === 0 && <span style={{ fontSize: 13, color: '#475569' }}>Aún no tenés palabras clave</span>}
-                  </div>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <input
-                      value={radarInput}
-                      onChange={e => setRadarInput(e.target.value)}
-                      onKeyDown={e => e.key === 'Enter' && addKeyword()}
-                      placeholder="Ej: limpieza, seguridad, software..."
-                      style={{ flex: 1, padding: '8px 14px', borderRadius: 8, border: '1px solid #1E3A5F', background: '#0A1628', color: '#E2E8F0', fontSize: 13, outline: 'none' }}
-                    />
-                    <button onClick={addKeyword}
-                      style={{ background: '#9ED23A', border: 'none', borderRadius: 8, padding: '8px 18px', fontSize: 13, fontWeight: 700, color: '#0A1628', cursor: 'pointer' }}>
-                      + Agregar
-                    </button>
-                  </div>
-                </div>
+            )}
 
-                {/* Results */}
-                <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <p style={{ fontSize: 13, color: '#64748B' }}>
-                    {radarLoading ? 'Buscando...' : `${radarHits.length} licitaciones encontradas (activas + últimos 30 días)`}
+            {/* Keyword input — available for everyone */}
+            <div style={{ background: '#0F1F35', border: '1px solid #1E3A5F', borderRadius: 12, padding: '20px 24px', marginBottom: 20 }}>
+              <p style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase' as const, letterSpacing: '0.08em', margin: '0 0 14px' }}>
+                Palabras clave del Radar {user && <span style={{ color: '#475569', fontWeight: 400, textTransform: 'none' as const }}>— guardadas en tu cuenta</span>}
+              </p>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' as const }}>
+                {radarKeywords.map(kw => (
+                  <span key={kw} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#9ED23A22', color: '#9ED23A', border: '1px solid #9ED23A44', borderRadius: 20, padding: '4px 12px', fontSize: 12, fontWeight: 600 }}>
+                    {kw}
+                    <button onClick={() => removeKeyword(kw)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ED23A', fontSize: 14, padding: 0, lineHeight: 1 }}>×</button>
+                  </span>
+                ))}
+                {radarKeywords.length === 0 && (
+                  <span style={{ fontSize: 13, color: '#475569' }}>Agregá palabras clave para empezar — ej: limpieza, software, vigilancia</span>
+                )}
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input
+                  value={radarInput}
+                  onChange={e => setRadarInput(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && addKeyword()}
+                  placeholder="Ej: limpieza, seguridad, software..."
+                  style={{ flex: 1, padding: '8px 14px', borderRadius: 8, border: '1px solid #1E3A5F', background: '#0A1628', color: '#E2E8F0', fontSize: 13, outline: 'none' }}
+                />
+                <button onClick={addKeyword}
+                  style={{ background: '#9ED23A', border: 'none', borderRadius: 8, padding: '8px 18px', fontSize: 13, fontWeight: 700, color: '#0A1628', cursor: 'pointer' }}>
+                  + Agregar
+                </button>
+              </div>
+            </div>
+
+            {/* Results */}
+            {radarKeywords.length > 0 && (
+              <>
+                <div style={{ marginBottom: 12 }}>
+                  <p style={{ fontSize: 13, color: '#64748B', margin: 0 }}>
+                    {radarLoading ? 'Buscando...' : `${radarHits.length} licitaciones encontradas — activas o cerradas en los últimos 30 días`}
                   </p>
                 </div>
                 {!radarLoading && radarHits.map((row: any) => {
@@ -836,7 +863,7 @@ export default function Home() {
                     </div>
                   )
                 })}
-              </div>
+              </>
             )}
           </div>
         )}

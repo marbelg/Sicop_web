@@ -9,22 +9,28 @@ async function getUser(req: NextRequest) {
 }
 
 // GET — list user's keywords + matching licitaciones
+// Accepts ?kw=word1,word2 for anonymous use (keywords from localStorage)
 export async function GET(req: NextRequest) {
   const user = await getUser(req)
-  if (!user) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
-
   const sql = getDb()
-  const keywords = await sql`
-    select keyword from radar_keywords
-    where user_id = ${user.userId}
-    order by created_at desc
-  `
 
-  if (keywords.length === 0) {
-    return NextResponse.json({ keywords: [], hits: [] })
+  let terms: string[]
+
+  if (user) {
+    const keywords = await sql`
+      select keyword from radar_keywords
+      where user_id = ${user.userId}
+      order by created_at desc
+    `
+    terms = keywords.map((k: any) => k.keyword)
+  } else {
+    const kwParam = req.nextUrl.searchParams.get('kw') ?? ''
+    terms = kwParam.split(',').map(s => s.trim().toLowerCase()).filter(Boolean)
   }
 
-  const terms = keywords.map((k: any) => k.keyword)
+  if (terms.length === 0) {
+    return NextResponse.json({ keywords: [], hits: [] })
+  }
   // Build a single regex pattern: "word1|word2|word3" for PostgreSQL ~* operator
   const pattern = terms.map((t: string) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')
 
