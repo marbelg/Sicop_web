@@ -80,6 +80,31 @@ const DATASETS = [
   },
 ]
 
+const TIPO_MAP: Record<string, string> = {
+  'contratacion directa':               'CD',
+  'contratacion especial':              'CE',
+  'licitacion abreviada':               'LA',
+  'licitacion reducida':                'LD',
+  'licitacion menor':                   'LE',
+  'licitacion publica internacional':   'LI',
+  'licitacion publica nacional':        'LN',
+  'licitacion mayor':                   'LY',
+  'licitacion publica':                 'LP',
+  'procedimientos especiales':          'PE',
+  'procedimiento por principio':        'PP',
+  'procedimiento por excepcion':        'PX',
+  'subasta inversa electronica':        'SE',
+}
+
+function normalizeTipo(v: string | null | undefined): string | null {
+  if (!v) return null
+  const clean = String(v).trim()
+  if (clean.length <= 3) return clean.toUpperCase()
+  const key = clean.toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+  return TIPO_MAP[key] ?? clean
+}
+
 function normalizeSC(row: any) {
   const numero = row.NUMERO_PROCEDIMIENTO
   if (!numero) return null
@@ -104,7 +129,7 @@ function normalizeSC(row: any) {
     numero_procedimiento: String(numero).trim(),
     titulo:            row.JUST_PROCEDENCIA ? String(row.JUST_PROCEDENCIA).slice(0, 500) : null,
     institucion:       row.CEDULA_INSTITUCION ? String(row.CEDULA_INSTITUCION) : null,
-    tipo_procedimiento:row.TIPO_PROCEDIMIENTO ? String(row.TIPO_PROCEDIMIENTO) : null,
+    tipo_procedimiento:normalizeTipo(row.TIPO_PROCEDIMIENTO),
     monto_estimado:    parseAmt(row.PRESUPUESTO),
     currency:          row.MONEDA ?? 'CRC',
     fecha_publicacion: parseDate(row.FECHA_TRAMITE),
@@ -135,7 +160,7 @@ function normalizeDC(row: any) {
     nombre_unidad_compra:   row.NOMBRE_UNIDAD_COMPRA ? String(row.NOMBRE_UNIDAD_COMPRA).slice(0, 300) : null,
     cedula_institucion:     row.CEDULA_INSTITUCION ? String(row.CEDULA_INSTITUCION) : null,
     descripcion:            row.DESCRIPCION ? String(row.DESCRIPCION).slice(0, 1000) : null,
-    tipo_procedimiento:     row.TIPO_PROCEDIMIENTO ? String(row.TIPO_PROCEDIMIENTO) : null,
+    tipo_procedimiento:     normalizeTipo(row.TIPO_PROCEDIMIENTO),
     modalidad:              row.MODALIDAD_PROCEDIMIENTO ? String(row.MODALIDAD_PROCEDIMIENTO) : null,
     fecha_publicacion:      parseDate(row.FECHA_PUBLICACION),
     fecha_apertura:         parseDate(row.FECHA_APERTURA),
@@ -685,7 +710,22 @@ export async function GET(req: NextRequest) {
         c.nro_procedimiento,
         c.descripcion,
         c.descripcion,
-        c.tipo_procedimiento,
+        case
+          when c.tipo_procedimiento ilike '%reducida%'              then 'LD'
+          when c.tipo_procedimiento ilike '%menor%'                 then 'LE'
+          when c.tipo_procedimiento ilike '%mayor%'                 then 'LY'
+          when c.tipo_procedimiento ilike '%abreviada%'             then 'LA'
+          when c.tipo_procedimiento ilike '%publica internacional%' then 'LI'
+          when c.tipo_procedimiento ilike '%publica nacional%'      then 'LN'
+          when c.tipo_procedimiento ilike '%publica%'               then 'LP'
+          when c.tipo_procedimiento ilike '%directa%'               then 'CD'
+          when c.tipo_procedimiento ilike '%especial%'              then 'CE'
+          when c.tipo_procedimiento ilike '%excepcion%'             then 'PX'
+          when c.tipo_procedimiento ilike '%principio%'             then 'PP'
+          when c.tipo_procedimiento ilike '%procedimientos especiales%' then 'PE'
+          when c.tipo_procedimiento ilike '%subasta%'               then 'SE'
+          else c.tipo_procedimiento
+        end,
         c.cedula_institucion,
         c.fecha_publicacion,
         c.fecha_cierre,
