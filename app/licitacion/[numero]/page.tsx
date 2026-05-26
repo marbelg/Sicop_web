@@ -10,6 +10,7 @@ const TIPO_LABELS: Record<string, string> = {
   LP: 'Licitación Pública',         PE: 'Procedimientos Especiales',
   PP: 'Procedimiento por Principio',PX: 'Procedimiento por Excepción',
   SE: 'Subasta Inversa Electrónica',
+  RE: 'Remate',
 }
 
 function fmtMonto(n: number | null, currency: string) {

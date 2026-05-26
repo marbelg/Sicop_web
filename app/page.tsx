@@ -10,6 +10,7 @@ const TIPO_LABELS: Record<string, string> = {
   LP: 'Licitación Pública',          PE: 'Procedimientos Especiales',
   PP: 'Procedimiento por Principio', PX: 'Procedimiento por Excepción',
   SE: 'Subasta Inversa Electrónica',
+  RE: 'Remate',
 }
 const TIPO_COLORS: Record<string, string> = {
   LP: '#378ADD', LN: '#378ADD', LI: '#378ADD',
@@ -17,6 +18,7 @@ const TIPO_COLORS: Record<string, string> = {
   CD: '#F59E0B', CE: '#F59E0B',
   PX: '#A78BFA', PP: '#A78BFA', PE: '#A78BFA',
   SE: '#F472B6',
+  RE: '#FB923C',
 }
 const ESTADO_COLORS: Record<string, string> = {
   'En recepción': '#22C55E',

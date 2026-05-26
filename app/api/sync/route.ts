@@ -94,6 +94,7 @@ const TIPO_MAP: Record<string, string> = {
   'procedimiento por principio':        'PP',
   'procedimiento por excepcion':        'PX',
   'subasta inversa electronica':        'SE',
+  'remate':                             'RE',
 }
 
 function normalizeTipo(v: string | null | undefined): string | null {
