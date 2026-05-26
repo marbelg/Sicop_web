@@ -113,7 +113,7 @@ function normalizeSC(row: any) {
   const parseDate = (v: any) => {
     if (!v) return null
     const s = String(v).trim()
-    if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10)
+    if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s   // keep full datetime if present
     if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) {
       const [d, m, y] = s.split('/'); return `${y}-${m}-${d}`
     }
@@ -431,8 +431,8 @@ async function syncDataset(
             r->>'tipo_procedimiento',
             (r->>'monto_estimado')::numeric,
             coalesce(r->>'currency', 'CRC'),
-            (r->>'fecha_publicacion')::date,
-            (r->>'fecha_cierre')::date,
+            (r->>'fecha_publicacion')::timestamptz,
+            (r->>'fecha_cierre')::timestamptz,
             r->>'estado',
             r->>'descripcion',
             array(select jsonb_array_elements_text(r->'keywords'))

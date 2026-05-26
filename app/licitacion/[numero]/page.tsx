@@ -179,14 +179,14 @@ export default function DetallePage() {
                 <span style={{ color: '#9ED23A', fontFamily: 'monospace', fontWeight: 700 }}>{data.nro_sicop}</span>
               } />
             )}
-            <Row label="Publicado" value={fmtDate(data.fecha_publicacion)} />
+            <Row label="Publicado" value={fmtDateTime(data.fecha_publicacion)} />
             {data.fecha_cierre && (
               <Row label="Cierre ofertas" value={
                 <span style={{ color: '#F59E0B', fontWeight: 600 }}>{fmtDateTime(data.fecha_cierre)}</span>
               } />
             )}
             {data.fecha_apertura && <Row label="Apertura" value={fmtDateTime(data.fecha_apertura)} />}
-            {data.fecha_adj_firme && <Row label="Adjudicado" value={fmtDate(data.fecha_adj_firme)} />}
+            {data.fecha_adj_firme && <Row label="Adjudicado" value={fmtDateTime(data.fecha_adj_firme)} />}
 
             <p style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase' as const, letterSpacing: '0.08em', margin: '20px 0 14px' }}>
               Participación
