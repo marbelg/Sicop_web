@@ -78,8 +78,11 @@ function StatCard({ label, value, sub, color }: { label: string; value: string |
   )
 }
 
-type Section = 'dashboard' | 'list' | 'instituciones' | 'oferentes' | 'categorias'
+type Section = 'dashboard' | 'list' | 'instituciones' | 'oferentes' | 'categorias' | 'radar'
 type Sort    = 'fecha_desc' | 'monto_asc' | 'monto_desc'
+type AuthMode = 'login' | 'registro'
+
+interface AuthUser { nombre: string; email: string; empresa?: string }
 
 export default function Home() {
   const router = useRouter()
@@ -110,6 +113,73 @@ export default function Home() {
 
   const [section, setSection]       = useState<Section>('dashboard')
   const [showFilters, setShowFilters] = useState(false)
+
+  // ── Auth & Radar ──
+  const [user, setUser]             = useState<AuthUser | null>(null)
+  const [showAuth, setShowAuth]     = useState(false)
+  const [authMode, setAuthMode]     = useState<AuthMode>('login')
+  const [authForm, setAuthForm]     = useState({ nombre: '', email: '', empresa: '', password: '' })
+  const [authError, setAuthError]   = useState('')
+  const [authLoading, setAuthLoading] = useState(false)
+  const [radarKeywords, setRadarKeywords] = useState<string[]>([])
+  const [radarHits, setRadarHits]   = useState<any[]>([])
+  const [radarInput, setRadarInput] = useState('')
+  const [radarLoading, setRadarLoading] = useState(false)
+
+  // Check session on mount
+  useEffect(() => {
+    fetch('/api/auth/me').then(r => r.ok ? r.json() : null).then(d => { if (d?.user) setUser(d.user) }).catch(() => {})
+  }, [])
+
+  // Load radar data when section = radar and user is logged in
+  useEffect(() => {
+    if (section !== 'radar' || !user) return
+    setRadarLoading(true)
+    fetch('/api/radar').then(r => r.json()).then(d => {
+      setRadarKeywords(d.keywords ?? [])
+      setRadarHits(d.hits ?? [])
+      setRadarLoading(false)
+    })
+  }, [section, user])
+
+  async function handleAuth(e: React.FormEvent) {
+    e.preventDefault()
+    setAuthError(''); setAuthLoading(true)
+    const endpoint = authMode === 'login' ? '/api/auth/login' : '/api/auth/registro'
+    const body = authMode === 'login'
+      ? { email: authForm.email, password: authForm.password }
+      : authForm
+    const res = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+    const data = await res.json()
+    setAuthLoading(false)
+    if (!res.ok) { setAuthError(data.error ?? 'Error'); return }
+    setUser(data.user)
+    setShowAuth(false)
+    setAuthForm({ nombre: '', email: '', empresa: '', password: '' })
+    setSection('radar')
+  }
+
+  async function handleLogout() {
+    await fetch('/api/auth/logout', { method: 'POST' })
+    setUser(null); setRadarKeywords([]); setRadarHits([])
+  }
+
+  async function addKeyword() {
+    const kw = radarInput.trim().toLowerCase()
+    if (!kw || radarKeywords.includes(kw)) return
+    await fetch('/api/radar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ keyword: kw }) })
+    setRadarInput('')
+    setRadarLoading(true)
+    const d = await fetch('/api/radar').then(r => r.json())
+    setRadarKeywords(d.keywords ?? []); setRadarHits(d.hits ?? []); setRadarLoading(false)
+  }
+
+  async function removeKeyword(kw: string) {
+    await fetch('/api/radar', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ keyword: kw }) })
+    setRadarLoading(true)
+    const d = await fetch('/api/radar').then(r => r.json())
+    setRadarKeywords(d.keywords ?? []); setRadarHits(d.hits ?? []); setRadarLoading(false)
+  }
 
   // Fetch dashboard whenever global filters change
   useEffect(() => {
@@ -176,6 +246,19 @@ export default function Home() {
           />
         </div>
         <a href="/import" style={{ fontSize: 12, color: '#64748B', textDecoration: 'none', whiteSpace: 'nowrap' as const }}>⟳ Sincronizar</a>
+        {user ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+            <button onClick={() => setSection('radar')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: '#9ED23A', fontWeight: 700, whiteSpace: 'nowrap' as const }}>
+              📡 {user.nombre.split(' ')[0]}
+            </button>
+            <button onClick={handleLogout} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: '#475569' }}>Salir</button>
+          </div>
+        ) : (
+          <button onClick={() => { setShowAuth(true); setAuthMode('login') }}
+            style={{ background: '#9ED23A', border: 'none', borderRadius: 6, padding: '6px 14px', fontSize: 12, fontWeight: 700, color: '#0A1628', cursor: 'pointer', whiteSpace: 'nowrap' as const, flexShrink: 0 }}>
+            Entrar
+          </button>
+        )}
       </div>
 
       {/* ── GLOBAL FILTER BAR ── */}
@@ -299,6 +382,7 @@ export default function Home() {
             { id: 'instituciones', label: 'Top Instituciones' },
             { id: 'oferentes',     label: 'Top Oferentes' },
             { id: 'categorias',    label: 'Por Categoría' },
+            { id: 'radar',         label: '📡 Radar' },
           ] as { id: Section; label: string }[]).map(tab => (
             <button key={tab.id} onClick={() => setSection(tab.id)} style={{
               padding: '8px 16px', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600,
@@ -663,7 +747,146 @@ export default function Home() {
           </div>
         )}
 
+        {/* ══ RADAR ══ */}
+        {section === 'radar' && (
+          <div>
+            {!user ? (
+              <div style={{ textAlign: 'center' as const, padding: '60px 20px' }}>
+                <p style={{ fontSize: 32, marginBottom: 12 }}>📡</p>
+                <p style={{ fontSize: 18, fontWeight: 700, color: '#E2E8F0', marginBottom: 8 }}>RadarLicitario</p>
+                <p style={{ fontSize: 14, color: '#64748B', marginBottom: 24, maxWidth: 380, margin: '0 auto 24px' }}>
+                  Guardá tus palabras clave y recibí resultados personalizados cada vez que entrés.
+                </p>
+                <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
+                  <button onClick={() => { setShowAuth(true); setAuthMode('registro') }}
+                    style={{ background: '#9ED23A', border: 'none', borderRadius: 8, padding: '10px 24px', fontSize: 14, fontWeight: 700, color: '#0A1628', cursor: 'pointer' }}>
+                    Crear cuenta gratis
+                  </button>
+                  <button onClick={() => { setShowAuth(true); setAuthMode('login') }}
+                    style={{ background: 'transparent', border: '1px solid #1E3A5F', borderRadius: 8, padding: '10px 24px', fontSize: 14, color: '#94A3B8', cursor: 'pointer' }}>
+                    Ya tengo cuenta
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div>
+                {/* Keyword input */}
+                <div style={{ background: '#0F1F35', border: '1px solid #1E3A5F', borderRadius: 12, padding: '20px 24px', marginBottom: 20 }}>
+                  <p style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase' as const, letterSpacing: '0.08em', margin: '0 0 14px' }}>
+                    Mis palabras clave
+                  </p>
+                  <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' as const }}>
+                    {radarKeywords.map(kw => (
+                      <span key={kw} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#9ED23A22', color: '#9ED23A', border: '1px solid #9ED23A44', borderRadius: 20, padding: '4px 12px', fontSize: 12, fontWeight: 600 }}>
+                        {kw}
+                        <button onClick={() => removeKeyword(kw)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ED23A', fontSize: 14, padding: 0, lineHeight: 1 }}>×</button>
+                      </span>
+                    ))}
+                    {radarKeywords.length === 0 && <span style={{ fontSize: 13, color: '#475569' }}>Aún no tenés palabras clave</span>}
+                  </div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <input
+                      value={radarInput}
+                      onChange={e => setRadarInput(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && addKeyword()}
+                      placeholder="Ej: limpieza, seguridad, software..."
+                      style={{ flex: 1, padding: '8px 14px', borderRadius: 8, border: '1px solid #1E3A5F', background: '#0A1628', color: '#E2E8F0', fontSize: 13, outline: 'none' }}
+                    />
+                    <button onClick={addKeyword}
+                      style={{ background: '#9ED23A', border: 'none', borderRadius: 8, padding: '8px 18px', fontSize: 13, fontWeight: 700, color: '#0A1628', cursor: 'pointer' }}>
+                      + Agregar
+                    </button>
+                  </div>
+                </div>
+
+                {/* Results */}
+                <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <p style={{ fontSize: 13, color: '#64748B' }}>
+                    {radarLoading ? 'Buscando...' : `${radarHits.length} licitaciones encontradas (activas + últimos 30 días)`}
+                  </p>
+                </div>
+                {!radarLoading && radarHits.map((row: any) => {
+                  const estadoColor: Record<string, string> = { 'En recepción': '#22C55E', 'En análisis': '#F59E0B', 'Adjudicada': '#9ED23A', 'Desierta': '#94A3B8' }
+                  const color = estadoColor[row.estado] ?? '#64748B'
+                  return (
+                    <div key={row.id} onClick={() => router.push(`/licitacion/${encodeURIComponent(row.numero_procedimiento)}`)}
+                      style={{ background: '#0F1F35', border: '1px solid #1E3A5F', borderRadius: 10, padding: '14px 18px', marginBottom: 8, cursor: 'pointer' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' as const, marginBottom: 6 }}>
+                            <Badge label={row.estado} color={color} pulse={row.estado === 'En recepción'} />
+                            {row.tipo_procedimiento && <Badge label={row.tipo_procedimiento} color="#378ADD" />}
+                          </div>
+                          <p style={{ fontSize: 13, fontWeight: 600, color: '#E2E8F0', margin: '0 0 4px', lineHeight: 1.4 }}>{row.titulo}</p>
+                          <p style={{ fontSize: 11, color: '#475569', margin: 0 }}>{row.nombre_institucion ?? row.institucion}</p>
+                        </div>
+                        <div style={{ textAlign: 'right' as const, flexShrink: 0 }}>
+                          {row.monto_estimado ? (
+                            <p style={{ fontSize: 14, fontWeight: 700, color: '#9ED23A', margin: '0 0 4px' }}>
+                              {fmtMonto(row.monto_estimado, row.currency)}
+                            </p>
+                          ) : null}
+                          {row.fecha_cierre && (
+                            <p style={{ fontSize: 11, color: '#64748B', margin: 0 }}>
+                              Cierre: {fmtDate(row.fecha_cierre)}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
       </div>
+
+      {/* ══ AUTH MODAL ══ */}
+      {showAuth && (
+        <div onClick={() => setShowAuth(false)} style={{ position: 'fixed', inset: 0, background: '#00000088', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: '#0F1F35', border: '1px solid #1E3A5F', borderRadius: 14, padding: '32px 28px', width: '100%', maxWidth: 400 }}>
+            <p style={{ fontSize: 18, fontWeight: 800, color: '#E2E8F0', margin: '0 0 6px' }}>
+              {authMode === 'login' ? 'Entrar' : 'Crear cuenta'}
+            </p>
+            <p style={{ fontSize: 13, color: '#64748B', margin: '0 0 24px' }}>
+              {authMode === 'login' ? 'Para acceder a tu RadarLicitario' : 'Gratis, solo para guardar tu Radar'}
+            </p>
+            <form onSubmit={handleAuth} style={{ display: 'flex', flexDirection: 'column' as const, gap: 12 }}>
+              {authMode === 'registro' && (
+                <>
+                  <input value={authForm.nombre} onChange={e => setAuthForm(f => ({ ...f, nombre: e.target.value }))}
+                    placeholder="Nombre completo" required
+                    style={{ padding: '10px 14px', borderRadius: 8, border: '1px solid #1E3A5F', background: '#0A1628', color: '#E2E8F0', fontSize: 13, outline: 'none' }} />
+                  <input value={authForm.empresa} onChange={e => setAuthForm(f => ({ ...f, empresa: e.target.value }))}
+                    placeholder="Empresa (opcional)"
+                    style={{ padding: '10px 14px', borderRadius: 8, border: '1px solid #1E3A5F', background: '#0A1628', color: '#E2E8F0', fontSize: 13, outline: 'none' }} />
+                </>
+              )}
+              <input value={authForm.email} onChange={e => setAuthForm(f => ({ ...f, email: e.target.value }))}
+                placeholder="Correo electrónico" type="email" required
+                style={{ padding: '10px 14px', borderRadius: 8, border: '1px solid #1E3A5F', background: '#0A1628', color: '#E2E8F0', fontSize: 13, outline: 'none' }} />
+              <input value={authForm.password} onChange={e => setAuthForm(f => ({ ...f, password: e.target.value }))}
+                placeholder="Contraseña (mín. 6 caracteres)" type="password" required
+                style={{ padding: '10px 14px', borderRadius: 8, border: '1px solid #1E3A5F', background: '#0A1628', color: '#E2E8F0', fontSize: 13, outline: 'none' }} />
+              {authError && <p style={{ fontSize: 12, color: '#F87171', margin: 0 }}>{authError}</p>}
+              <button type="submit" disabled={authLoading}
+                style={{ background: '#9ED23A', border: 'none', borderRadius: 8, padding: '11px', fontSize: 14, fontWeight: 700, color: '#0A1628', cursor: 'pointer', opacity: authLoading ? 0.7 : 1 }}>
+                {authLoading ? 'Procesando...' : authMode === 'login' ? 'Entrar' : 'Crear cuenta'}
+              </button>
+            </form>
+            <p style={{ fontSize: 12, color: '#64748B', textAlign: 'center' as const, margin: '16px 0 0' }}>
+              {authMode === 'login' ? '¿No tenés cuenta? ' : '¿Ya tenés cuenta? '}
+              <button onClick={() => { setAuthMode(authMode === 'login' ? 'registro' : 'login'); setAuthError('') }}
+                style={{ background: 'none', border: 'none', color: '#9ED23A', cursor: 'pointer', fontSize: 12, fontWeight: 600, padding: 0 }}>
+                {authMode === 'login' ? 'Registrate gratis' : 'Entrá aquí'}
+              </button>
+            </p>
+          </div>
+        </div>
+      )}
+
     </div>
   )
 }
