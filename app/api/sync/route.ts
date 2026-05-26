@@ -145,10 +145,10 @@ function normalizeDC(row: any) {
   const nro = row.NRO_PROCEDIMIENTO
   if (!nro) return null
 
-  const parseDate = (v: any) => {
+  const parseTs = (v: any) => {
     if (!v) return null
     const s = String(v).trim()
-    if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10)
+    if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s        // keep full datetime if present
     if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) {
       const [d, m, y] = s.split('/'); return `${y}-${m}-${d}`
     }
@@ -157,15 +157,15 @@ function normalizeDC(row: any) {
 
   return {
     nro_procedimiento:      String(nro).trim(),
-    fecha_cierre:           parseDate(row.FECHA_CIERRE_RECEPCION),
+    fecha_cierre:           parseTs(row.FECHA_CIERRE_RECEPCION),
     nombre_unidad_compra:   row.NOMBRE_UNIDAD_COMPRA ? String(row.NOMBRE_UNIDAD_COMPRA).slice(0, 300) : null,
     cedula_institucion:     row.CEDULA_INSTITUCION ? String(row.CEDULA_INSTITUCION) : null,
     descripcion:            row.DESCRIPCION ? String(row.DESCRIPCION).slice(0, 1000) : null,
     tipo_procedimiento:     normalizeTipo(row.TIPO_PROCEDIMIENTO),
     modalidad:              row.MODALIDAD_PROCEDIMIENTO ? String(row.MODALIDAD_PROCEDIMIENTO) : null,
-    fecha_publicacion:      parseDate(row.FECHA_PUBLICACION),
-    fecha_apertura:         parseDate(row.FECHA_APERTURA),
-    fecha_inicio_recepcion: parseDate(row.FECHA_INICIO_RECEPCION),
+    fecha_publicacion:      parseTs(row.FECHA_PUBLICACION),
+    fecha_apertura:         parseTs(row.FECHA_APERTURA),
+    fecha_inicio_recepcion: parseTs(row.FECHA_INICIO_RECEPCION),
     nro_sicop:              row.NRO_SICOP ? String(row.NRO_SICOP) : null,
     pago_adelantado_pymes:  row.PAGO_ADELANTADO_PYMES ? String(row.PAGO_ADELANTADO_PYMES) : null,
     raw:                    row,
@@ -456,15 +456,15 @@ async function syncDataset(
              fecha_apertura, fecha_inicio_recepcion, nro_sicop, pago_adelantado_pymes)
           select
             r->>'nro_procedimiento',
-            (r->>'fecha_cierre')::date,
+            (r->>'fecha_cierre')::timestamptz,
             r->>'nombre_unidad_compra',
             r->>'cedula_institucion',
             r->>'descripcion',
             r->>'tipo_procedimiento',
             r->>'modalidad',
-            (r->>'fecha_publicacion')::date,
-            (r->>'fecha_apertura')::date,
-            (r->>'fecha_inicio_recepcion')::date,
+            (r->>'fecha_publicacion')::timestamptz,
+            (r->>'fecha_apertura')::timestamptz,
+            (r->>'fecha_inicio_recepcion')::timestamptz,
             r->>'nro_sicop',
             r->>'pago_adelantado_pymes'
           from jsonb_array_elements(${JSON.stringify(batch)}::jsonb) r

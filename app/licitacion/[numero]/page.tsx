@@ -27,6 +27,13 @@ function fmtDate(s: string | null) {
   return `${d}/${m}/${y}`
 }
 
+function fmtDateTime(s: string | null) {
+  if (!s) return '—'
+  const [y, m, d] = s.slice(0, 10).split('-')
+  const time = s.slice(11, 16)
+  return time && time !== '00:00' ? `${d}/${m}/${y} ${time}` : `${d}/${m}/${y}`
+}
+
 function Badge({ label, color, pulse }: { label: string; color: string; pulse?: boolean }) {
   return (
     <span style={{
@@ -175,10 +182,10 @@ export default function DetallePage() {
             <Row label="Publicado" value={fmtDate(data.fecha_publicacion)} />
             {data.fecha_cierre && (
               <Row label="Cierre ofertas" value={
-                <span style={{ color: '#F59E0B', fontWeight: 600 }}>{fmtDate(data.fecha_cierre)}</span>
+                <span style={{ color: '#F59E0B', fontWeight: 600 }}>{fmtDateTime(data.fecha_cierre)}</span>
               } />
             )}
-            {data.fecha_apertura && <Row label="Apertura" value={fmtDate(data.fecha_apertura)} />}
+            {data.fecha_apertura && <Row label="Apertura" value={fmtDateTime(data.fecha_apertura)} />}
             {data.fecha_adj_firme && <Row label="Adjudicado" value={fmtDate(data.fecha_adj_firme)} />}
 
             <p style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase' as const, letterSpacing: '0.08em', margin: '20px 0 14px' }}>
